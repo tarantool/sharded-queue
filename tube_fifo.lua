@@ -182,19 +182,19 @@ function tube.touch(tube_name, ttr)
     -- error('fifo queue does not support touch')
 end
 
-function tube.delete(tube_name, id)
+function tube.delete(args)
     box.begin()
-    local task = box.space[tube_name]:get(id)
-    box.space[tube_name]:delete(id)
+    local task = box.space[args.tube_name]:get(args.task_uuid)
+    box.space[args.tube_name]:delete(args.task_uuid)
     box.commit()
     if task ~= nil then
-        task = task:transform(2, 1, state.DONE)
+        task = task:transform(index.status, 1, state.DONE)
     end
     return task
 end
 
 function tube.release(args)
-    local task = box.space[args.tube_name]:update(args.id, { {'=', 3, state.READY} })
+    local task = box.space[args.tube_name]:update(args.task_uuid, { {'=', 3, state.READY} })
     return task
 end
 

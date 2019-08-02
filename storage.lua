@@ -10,18 +10,26 @@ local function init(opts)
             'universe',
             nil, { if_not_exists = true })
         --
-        box.schema.func.create('tube_create', {if_not_exists = true})
-        box.schema.func.create('tube_put',    {if_not_exists = true})
-        box.schema.func.create('tube_take',   {if_not_exists = true})
+        box.schema.func.create('tube_create',  {if_not_exists = true})
+        box.schema.func.create('tube_put',     {if_not_exists = true})
+        box.schema.func.create('tube_take',    {if_not_exists = true})
+        box.schema.func.create('tube_delete',  {if_not_exists = true})
+        box.schema.func.create('tube_release', {if_not_exists = true})
         --
-        box.schema.user.grant('guest', 'execute', 'function', 'tube_create', {if_not_exists = true})
-        box.schema.user.grant('guest', 'execute', 'function', 'tube_put',    {if_not_exists = true})
-        box.schema.user.grant('guest', 'execute', 'function', 'tube_take',   {if_not_exists = true})
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_create',  {if_not_exists = true})
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_put',     {if_not_exists = true})
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_take',    {if_not_exists = true})
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_delete',  {if_not_exists = true})
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_release', {if_not_exists = true})
         --
     end
-    rawset(_G, 'tube_create', tube.create)
-    rawset(_G, 'tube_put', tube.put)
-    rawset(_G, 'tube_take', tube.take)
+    --
+    rawset(_G, 'tube_create',  tube.create)
+    rawset(_G, 'tube_put',     tube.put)
+    rawset(_G, 'tube_take',    tube.take)
+    rawset(_G, 'tube_delete',  tube.delete)
+    rawset(_G, 'tube_release', tube.release)
+    --
 end
 
 return {

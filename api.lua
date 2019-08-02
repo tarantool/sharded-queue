@@ -99,6 +99,7 @@ local function map_task(tube_name)
     return table.concat(task_set, '\n')
 end
 
+
 -- API HANDLER --
 -----------------
 
@@ -113,12 +114,10 @@ end
 local handler = {}
 
 function handler.tube_create(req)
-    -- POST METHOD --
     local status, body = pcall(req.json, req)
-    local tube_name, options = body['tube_name'], body['options']
+    local tube_name = req:stash('tube_name')
 
-    -- TODO: maybe check ?exist tube with equivalent name? -- 
-    -- -- store info about tube`s and last task_id -- --
+    local options = body['options']
 
     local replicasets = cluster.admin.get_replicasets()
     local output = {}
@@ -135,12 +134,11 @@ end
 
 
 function handler.tube_put(req)
-    -- POST METHOD --
-
     local status, body = pcall(req.json, req)
+    local tube_name = req:stash('tube_name')
 
     -- TODO: move parsing request to external function
-    local tube_name, data, priority, ttl, delay = body['tube_name'], body['data'], body['priority'], body['ttl'], body['delay']
+    local data, priority, ttl, delay = body['data'], body['priority'], body['ttl'], body['delay']
 
     local task_uuid = uuid.str()
     local bucket_id = vshard.router.bucket_id(task_uuid)
@@ -163,11 +161,9 @@ function handler.tube_put(req)
 end
 
 function handler.tube_take(req)
-    -- GET METHOD --
     local status, body = pcall(req.json, req)
     local tube_name = req:stash('tube_name')
     local timeout = time(body['timeout'] or TIMEOUT_INFINITY)
-
 
     local storages = {}
     for _, replica in pairs(cluster.admin.get_replicasets()) do
@@ -176,9 +172,6 @@ function handler.tube_take(req)
         end
     end
     
-    -- get random storage uuid from storages
-    -- local instance_uri = storages[math.random(1, #storages)]
-
     utils.array_shuffle(storages)
 
     local take_task = function ()
@@ -192,18 +185,57 @@ function handler.tube_take(req)
     local task = take_task()
     
     if not task then
-        task = [1, 'tube empty']
+        task = {1, 'tube empty'}
     end
 
     return req:render({ json = task })
 end
 
------------------
------------------
+function handler.tube_delete(req)
+    local status, body = pcall(req.json, req)
 
--- SERVICE HANDLER 
+    local tube_name = req:stash('tube_name')
+    local task_uuid = body['task_uuid']
 
+    local bucket_id = vshard.router.bucket_id(task_uuid)
+    local replica, err = vshard.router.route(bucket_id)
 
+    local args = {
+        tube_name = tube_name,
+        task_uuid = task_uuid
+    }
+
+    local ok, ret = pcall(remote_call,
+        replica.master.uri, 'tube_delete', args)
+    if ret == nil then
+        ret = {1, 'not found'}
+    end
+
+    return req:render({ json = ret })
+end
+
+function handler.tube_release(req)
+    local status, body = pcall(req.json, req)
+
+    local tube_name = req:stash('tube_name')
+    local task_uuid = body['task_uuid']
+
+    local bucket_id = vshard.router.bucket_id(task_uuid)
+    local replica, err = vshard.router.route(bucket_id)
+
+    local args = {
+        tube_name = tube_name,
+        task_uuid = task_uuid
+    }
+
+    local ok, ret = pcall(remote_call,
+        replica.master.uri, 'tube_release', args)
+    if ret == nil then
+        ret = {1, 'not found'}
+    end
+
+    return req:render({ json = ret })
+end
 
 local function init(opts)
     rawset(_G, 'vshard', vshard)
@@ -214,20 +246,20 @@ local function init(opts)
             'universe',
             nil, { if_not_exists = true }
         )
-        map_reduce_init()
     end
 
     local httpd = cluster.service_get('httpd')
     if httpd ~= nil then
-        httpd:route( { method = 'GET',  path = '/queue/take/:tube_name' }, handler.tube_take )
-        httpd:route( { method = 'POST', path = '/queue/put' },             handler.tube_put )
-        httpd:route( { method = 'POST', path = '/queue/create' },          handler.tube_create )
+        httpd:route( { method = 'POST',   path = '/queue/:tube_name/create'  }, handler.tube_create )
+        httpd:route( { method = 'PUT',    path = '/queue/:tube_name/put'     }, handler.tube_put )
+        httpd:route( { method = 'GET',    path = '/queue/:tube_name/take'    }, handler.tube_take )
+        httpd:route( { method = 'DELETE', path = '/queue/:tube_name/delete'  }, handler.tube_delete )
+        httpd:route( { method = 'PATCH',  path = '/queue/:tube_name/release' }, handler.tube_release )
     end
 end
 
 return {
     init = init,
-    tube = service,
     dependencies = {
         'cluster.roles.vshard-router',
     }
