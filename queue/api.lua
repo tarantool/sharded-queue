@@ -131,7 +131,9 @@ end
 function service.release(tube_name, task_id)
     -- task release from tube --
 
-    local bucket_id = vshard.router.bucket_id(task_id)
+    local bucket_count = vshard.router.bucket_count()
+    local bucket_id, idx = utils.unpack_task_id(task_id, bucket_count)
+    
     local replica, err = vshard.router.route(bucket_id)
 
     local ok, ret = pcall(remote_call, 'tube_release',
@@ -140,10 +142,6 @@ function service.release(tube_name, task_id)
             tube_name = tube_name,
             task_id = task_id
         })
-
-    if ret == nil then
-        ret = {1, 'not found'}
-    end
 
     return ret
 end

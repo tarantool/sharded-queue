@@ -1,18 +1,9 @@
-local t = require('luatest')
-local g = t.group('simple_test')
-
-package.path = package.path .. ";../?.lua"
-
+local helper = require('test.helper')
 local queue = require('queue')
-local utils = require('utils')
 
-local state = {
-    READY   = 'r',
-    TAKEN   = 't',
-    DONE    = '-',
-    BURIED  = '!',
-    DELAYED = '~',
-}
+local t = require('luatest')
+
+local g = t.group('simple_test')
 
 ---
 
@@ -50,11 +41,11 @@ function g.test_put_taken()
     local taken_task_ids = {}
     for i = 1, #task_ids do
         local task = tube:take()
-        t.assert_equals(task[3], state.TAKEN)
+        t.assert_equals(task[3], helper.state.TAKEN)
         table.insert(taken_task_ids, task[1])
     end
     -- compare
-    t.assert_equals(utils.equal_sets(task_ids, taken_task_ids), true)
+    t.assert_equals(helper.equal_sets(task_ids, taken_task_ids), true)
 end
 
 function g.test_delete()
@@ -83,8 +74,6 @@ function g.test_delete()
     local deleted_tasks_count = 10
     local deleted_tasks = {}
 
-    utils.array_shuffle(task_ids)
-
     for i = 1, deleted_tasks_count do
         table.insert(deleted_tasks, tube:delete(task_ids[i])[1])
     end
@@ -93,7 +82,7 @@ function g.test_delete()
     local taken_task_ids = {}
     for i = 1, task_count - deleted_tasks_count do
         local task = tube:take()
-        t.assert_equals(task[3], state.TAKEN)
+        t.assert_equals(task[3], helper.state.TAKEN)
         table.insert(taken_task_ids, task[1])
     end
     --
@@ -103,6 +92,53 @@ function g.test_delete()
     end
 
     -- compare
-    t.assert_equals(utils.equal_sets(excepted_task_ids, taken_task_ids), true)
+    t.assert_equals(helper.equal_sets(excepted_task_ids, taken_task_ids), true)
 end
 
+function g.test_release()
+    local tube_name = 'release_test'
+    local tube = queue.create_tube(tube_name)
+
+    local task_count = 10
+    local tasks_data = {}
+    
+    for i = 1, task_count do
+        table.insert(tasks_data, {
+            name = 'task_' .. i,
+            raw = '*'
+        })
+    end
+
+    -- returned tasks 
+    local task_ids = {}
+    for _, data in pairs(tasks_data) do
+        local task = tube:put(data, {})
+        t.assert_equals(task[3], helper.state.READY)
+        table.insert(task_ids, task[1])
+    end
+
+    -- take few tasks
+    local taken_task_count = 5
+    local taken_task_ids = {}
+
+    for i = 1, taken_task_count do
+        local task = tube:take()
+        t.assert_equals(task[3], helper.state.TAKEN)
+        table.insert(taken_task_ids, task[1])
+    end
+
+    t.assert_equals(helper.subset_of(taken_task_ids, task_ids), true)
+
+    for _, task_id in pairs(taken_task_ids) do
+        local task = tube:release(task_id)
+        t.assert_equals(task[3], helper.state.READY)
+    end
+
+    local result_task_id = {}
+
+    for i = 1, task_count do
+        table.insert(result_task_id, tube:take()[1])
+    end
+
+    t.assert_equals(helper.equal_sets(task_ids, result_task_id), true)
+end

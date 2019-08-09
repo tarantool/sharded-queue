@@ -42,21 +42,6 @@ function utils.array_max(array)
     return index, max
 end
 
--- a < b
-function utils.subset_of(a, b)
-    for _, value in pairs(a) do
-        if not utils.array_contains(b, value) then
-            return false
-        end
-    end
-    return true
-end
-
--- a = b
-function utils.equal_sets(a, b)
-    return utils.subset_of(a, b) and utils.subset_of(b, a)
-end
-
 --[[
 task_id = internal_index * (bucket_count + 1) + bucket_id
 Increment is necessary to avoid the case when the bucket_id id is equal bucket_count

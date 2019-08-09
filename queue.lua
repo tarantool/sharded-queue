@@ -23,6 +23,7 @@ function method.put(self, data, options)
             data,
             options
         })
+
     return task
 end
 
@@ -38,13 +39,22 @@ function method.take(self, timeout)
 end
 
 function method.delete(self, task_id)
-    local options = options or {}
+    -- local options = options or {}
     local task = queue._conn:call('queue.delete',
         {
             self.tube_name,
             task_id
         })
 
+    return task
+end
+
+function method.release(self, task_id)
+    local task = queue._conn:call('queue.release',
+        {
+            self.tube_name,
+            task_id
+        })
     return task
 end
 
