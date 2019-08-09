@@ -1,8 +1,8 @@
 local vshard = require('vshard')
-local state = require('state')
+local state = require('queue.state')
+local utils = require('queue.utils')
+local time = require('queue.time')
 local fiber = require('fiber')
-local utils = require('utils')
-local time = require('time')
 
 local driver = {}
 

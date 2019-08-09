@@ -1,13 +1,13 @@
 local cluster = require('cluster')
 local net_box = require('net.box')
 local vshard = require('vshard')
-local state = require('state')
 local fiber = require('fiber')
-local json = require('json')
-local utils = require('utils')
-local tube = require('driver_fifottl')
-local time = require('time')
 local log = require('log')
+
+local time = require('queue.time')
+local state = require('queue.state')
+local utils = require('queue.utils')
+local tube = require('queue.driver_fifottl')
 
 
 local remote_call = function(method, instance_uri, args)
@@ -133,7 +133,7 @@ function service.release(tube_name, task_id)
 
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, idx = utils.unpack_task_id(task_id, bucket_count)
-    
+
     local replica, err = vshard.router.route(bucket_id)
 
     local ok, ret = pcall(remote_call, 'tube_release',
@@ -156,7 +156,6 @@ end
 
 local function init(opts)
     rawset(_G, 'vshard', vshard)
-
     if opts.is_master then
         box.schema.user.grant('guest',
             'read,write,execute',
