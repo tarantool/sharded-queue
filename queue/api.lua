@@ -90,36 +90,32 @@ function service.delete(tube_name, task_id)
     -- task delete from tube --
 
     local bucket_count = vshard.router.bucket_count()
-    local bucket_id, idx = utils.unpack_task_id(task_id, bucket_count)
+    local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
-    local replica, err = vshard.router.route(bucket_id)
-
-    local ok, ret = pcall(remote_call, 'tube_delete',
-        replica.master.uri,
+    local task = vshard.router.call(bucket_id, 'write', 'tube_delete', {
         {
             tube_name = tube_name,
-            task_id = task_id
-        })
+            task_id = task_id    
+        }
+    })
 
-    return ret
+    return task
 end
 
 function service.release(tube_name, task_id)
     -- task release from tube --
 
     local bucket_count = vshard.router.bucket_count()
-    local bucket_id, idx = utils.unpack_task_id(task_id, bucket_count)
+    local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
-    local replica, err = vshard.router.route(bucket_id)
-
-    local ok, ret = pcall(remote_call, 'tube_release',
-        replica.master.uri,
+    local task = vshard.router.call(bucket_id, 'write', 'tube_release', {
         {
             tube_name = tube_name,
-            task_id = task_id
-        })
+            task_id = task_id    
+        }
+    })
 
-    return ret
+    return task
 end
 
 local function validate_config(config_new, config_old)
