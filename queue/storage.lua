@@ -8,9 +8,7 @@ local queue_driver = require('driver_fifottl')
 local function apply_config(cfg, opts)
     if opts.is_master then
         for _, t in pairs(cfg.tubes or {}) do
-            if not queue_driver.check(t.name) then
-                queue_driver.create(t)
-            end
+            queue_driver.create(t)
         end
     end
     return true

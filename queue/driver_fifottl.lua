@@ -62,7 +62,7 @@ end
 function driver.create(args)
     local space_options = {}
 
-    local if_not_exists = args.options.if_not_exists or false
+    local if_not_exists = args.options.if_not_exists or true
 
     space_options.if_not_exists = if_not_exists
     space_options.temporary = args.options.temporary or false
