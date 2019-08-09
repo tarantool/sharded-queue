@@ -57,6 +57,12 @@ function utils.equal_sets(a, b)
     return utils.subset_of(a, b) and utils.subset_of(b, a)
 end
 
+--[[
+task_id = internal_index * (bucket_count + 1) + bucket_id
+Increment is necessary to avoid the case when the bucket_id id is equal bucket_count
+To get bucket_id and internal_index you need to perform the reverse operation
+--]]
+
 function utils.pack_task_id(bucket, bucket_count, index)
     return index * (bucket_count + 1) + bucket
 end

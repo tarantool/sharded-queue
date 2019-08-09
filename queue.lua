@@ -33,16 +33,6 @@ function method.take(self, timeout)
             self.tube_name,
             timeout
         })
-    
-    -- if task ~= nil then
-    --     return task
-    -- end
-
-    -- while timeout > 0 do
-    --     local started = fiber.time64()
-    --     local t = time.event(timeout)
-        
-    -- end
 
     return task
 end
@@ -54,18 +44,14 @@ function method.delete(self, task_id)
             self.tube_name,
             task_id
         })
-    return task
-end
 
-local function apply_config(tube_name, options)
-    queue._conn:eval(
-        string.format("require('cluster').config_patch_clusterwide({ tube_name = %q, options = {} }) ", tube_name))
+    return task
 end
 
 local function create_tube(tube_name, options)
     local options = options or {}
 
-    local ok = queue._conn:call('queue._create',
+    local ok = queue._conn:call('queue.create',
         {
             tube_name,
             options
@@ -94,7 +80,6 @@ function queue.init(router_uri)
     end
 
     queue.create_tube = create_tube
-    queue.apply_config = apply_config
 
     function queue.stop()
         queue._conn:close()

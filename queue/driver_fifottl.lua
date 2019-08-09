@@ -134,12 +134,6 @@ function driver.get_task(args)
     return task
 end
 
--- function tube.get_task_id(args)
---     -- getting task without change state --
---     local max = box.space[args.tube_name].index.task_id:max()
---     return max and max[1] + 1 or 0
--- end
-
 function get_index(tube_name, bucket_id)
     local task = box.space[tube_name].index.idx:max { bucket_id }
     if not task or task[index.bucket_id] ~= bucket_id then

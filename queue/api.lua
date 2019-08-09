@@ -19,7 +19,7 @@ end
 
 local service = {}
 
-function service._create(tube_name, options)
+function service.create(tube_name, options)
     local tubes = cluster.config_get_deepcopy('tubes') or {}
 
     local key = function(x) return x.name end
@@ -34,7 +34,7 @@ function service._create(tube_name, options)
     return true
 end
 
-function service.create(tube_name, options)
+function service.old_create(tube_name, options)
     -- create tube --
 
     local replicasets = cluster.admin.get_replicasets()
@@ -88,8 +88,7 @@ function service.take(tube_name, timeout)
         end
     end
     utils.array_shuffle(storages)
-    log.info('STORAGES')
-    log.info(#storages)
+
     -- function for try get task from instance --   
     local take_task = function ()
         for _, instance_uri in pairs(storages) do
