@@ -1,48 +1,32 @@
+local vshard = require('vshard')
 local state = require('state')
 local fiber = require('fiber')
-local vshard = require('vshard')
-local tube = {}
+local utils = require('utils')
+local time = require('time')
 
-local MAX_TIMEOUT      = 365 * 86400 * 100       -- MAX_TIMEOUT == 100 years
-local TIMEOUT_INFINITY = 18446744073709551615ULL -- Set to TIMEOUT_INFINITY
-
-local function time(tm)
-    if tm == nil then
-        tm = fiber.time64()
-    elseif tm < 0 then
-        tm = 0
-    else
-        tm = tm * 1000000
-    end
-    return 0ULL + tm
-end
-
-local function event_time(tm)
-    if tm == nil or tm < 0 then
-        tm = 0
-    end
-    return 0ULL + tm * 1000000 + fiber.time64()
-end
+local driver = {}
 
 local index = {
-    task_uuid  = 1,
+    task_id    = 1,
     bucket_id  = 2,
     status     = 3,
     created    = 4,
     priority   = 5,
     ttl        = 6,
     next_event = 7,
-    data       = 8
+    data       = 8,
+    index      = 9
 }
 
 -- FIBERS METHODs --
 
 local function fiber_iteration(tube_name, processed)
-    local curr = time()
+    local curr = time.time()
     local task = nil
-    local estimated = TIMEOUT_INFINITY
+    local estimated = time.TIMEOUT_INFINITY
 
     -- delayed tasks
+
     task = nil  
 end
 
@@ -67,7 +51,15 @@ end
 
 -- QUEUE METHODs --
 
-function tube.create(args)
+function driver.check(name)
+    if box.space[name] ~= nil then
+        return true
+    else
+        return false
+    end
+end
+
+function driver.create(args)
     local space_options = {}
 
     local if_not_exists = args.options.if_not_exists or false
@@ -77,22 +69,31 @@ function tube.create(args)
     space_options.engine = args.options.engine or 'memtx'
 
     space_options.format = {
-        { 'task_uuid',  'string'   },
+        { 'task_id',    'unsigned' },
         { 'bucket_id',  'unsigned' },
         { 'status',     'string'   },
         { 'created',    'unsigned' },
         { 'priority',   'unsigned' },
         { 'ttl',        'unsigned' },
         { 'next_event', 'unsigned' },
-        { 'data',       '*'        }
+        { 'data',       '*'        },
+        { 'index',      'unsigned' }
     }
 
     local space = box.schema.space.create(args.name, space_options)
-
-    space:create_index('task_uuid', {
-        type = 'hash',
+    space:create_index('task_id', {
+        type = 'tree',
         parts = {
-            index.task_uuid, 'string'
+            index.task_id, 'unsigned'
+        },
+        if_not_exists = if_not_exists
+    })
+
+    space:create_index('idx', {
+        type = 'tree',
+        parts = {
+            index.bucket_id, 'unsigned',
+            index.index,     'unsigned'
         },
         if_not_exists = if_not_exists
     })
@@ -127,7 +128,7 @@ function tube.create(args)
 
 end
 
-function tube.get_task(args)
+function driver.get_task(args)
     -- getting task without change state --
     local task = box.space[args.tube_name].index.status:min { state.READY }
     return task
@@ -135,76 +136,94 @@ end
 
 -- function tube.get_task_id(args)
 --     -- getting task without change state --
---     local max = box.space[args.tube_name].index.task_uuid:max()
+--     local max = box.space[args.tube_name].index.task_id:max()
 --     return max and max[1] + 1 or 0
 -- end
 
-function tube.put(args)
+function get_index(tube_name, bucket_id)
+    local task = box.space[tube_name].index.idx:max { bucket_id }
+    if not task or task[index.bucket_id] ~= bucket_id then
+        return 1
+    else
+        return task[index.index] + 1
+    end
+end
+
+function driver.put(args)
 
     local delay = args.delay or 0
+    local priority = args.priority or 0
     local status = state.READY
-    local ttl = args.ttl or TIMEOUT_INFINITY
+    local ttl = args.ttl or time.TIMEOUT_INFINITY
+    local idx = get_index(args.tube_name, args.bucket_id)
+
     local next_event
+    local task_id = utils.pack_task_id(
+        args.bucket_id,
+        args.bucket_count,
+        idx)
 
     if delay > 0 then
         status = state.DELAYED
         ttl = ttl + delay
-        next_event = event_time(delay)
+        next_event = time.event(delay)
     else
-        next_event = event_time(ttl)
+        next_event = time.event(ttl)
     end
 
     box.begin()
     local task = box.space[args.tube_name]:insert {
-        args.task_uuid,         -- task_uuid
+        task_id,                -- task_id
         args.bucket_id,         -- bucket_id
         status,                 -- state
-        time(),                 -- created
-        args.priority or 0,     -- priority
-        time(ttl),              -- ttl
+        time.time(),                 -- created
+        priority,               -- priority
+        time.time(ttl),              -- ttl
         next_event,             -- next_event
-        args.data               -- data
+        args.data,              -- data
+        idx                     -- index
     }
     box.commit()
     return task
 end
 
-function tube.take(args)
-    for _, tuple in
+function driver.take(args)
+    for _, task in
         box.space[args.tube_name].index.status:pairs(nil, {state.READY} ) do
-        if tuple ~= nil and tuple[3] == state.READY then
-            return box.space[args.tube_name]:update(tuple[1], { {'=', 3, state.TAKEN} })
+        if task ~= nil and task[index.status] == state.READY then
+            return box.space[args.tube_name]:update(task[index.task_id], { {'=', index.status, state.TAKEN} })
         end
     end
 end
 
-function tube.touch(tube_name, ttr)
+function driver.touch(tube_name, ttr)
     -- error('fifo queue does not support touch')
 end
 
-function tube.delete(args)
+function driver.delete(args)
     box.begin()
-    local task = box.space[args.tube_name]:get(args.task_uuid)
-    box.space[args.tube_name]:delete(args.task_uuid)
+    local task = box.space[args.tube_name]:get(args.task_id)
+    box.space[args.tube_name]:delete(args.task_id)
     box.commit()
     if task ~= nil then
         task = task:transform(index.status, 1, state.DONE)
     end
     return task
 end
+-- TODO: this 
+function driver.release(args)
 
-function tube.release(args)
-    local task = box.space[args.tube_name]:update(args.task_uuid, { {'=', 3, state.READY} })
+    local task = box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.READY} })
     return task
 end
 
-function tube.bury(args)
-    local task = box.space[args.tube_name]:update(args.id, { {'=', 3, state.BURIED} })
+function driver.bury(args)
+    local task = box.space[args.tube_name]:update(args.id, { {'=', index.status, state.BURIED} })
     return task
 end
 
 -- unbury several tasks
-function tube.kick(tube_name, count)
+function driver.kick(tube_name, count)
     for i = 1, count do
         local task = box.space[tube_name].index.status:min {state.BURIED}
         if task == nil then
@@ -215,9 +234,8 @@ function tube.kick(tube_name, count)
         end
 
         task = box.space[tube_name]:update(task[1], { {'=', 2, state.READY} })
-        -- self.on_task_change(task, 'kick')
     end
     return count
 end
 
-return tube
+return driver

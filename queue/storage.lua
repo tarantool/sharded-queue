@@ -1,6 +1,20 @@
 local cluster = require('cluster')
 local checks = require('checks')
-local tube = require('tube_fifo')
+local log = require('log')
+
+package.path = package.path .. ";queue/?.lua"
+local queue_driver = require('driver_fifottl')
+
+local function apply_config(cfg, opts)
+    if opts.is_master then
+        for _, t in pairs(cfg.tubes or {}) do
+            if not queue_driver.check(t.name) then
+                queue_driver.create(t)
+            end
+        end
+    end
+    return true
+end
 
 local function init(opts)
     if opts.is_master then
@@ -24,16 +38,17 @@ local function init(opts)
         --
     end
     --
-    rawset(_G, 'tube_create',  tube.create)
-    rawset(_G, 'tube_put',     tube.put)
-    rawset(_G, 'tube_take',    tube.take)
-    rawset(_G, 'tube_delete',  tube.delete)
-    rawset(_G, 'tube_release', tube.release)
+    rawset(_G, 'tube_create',  queue_driver.create)
+    rawset(_G, 'tube_put',     queue_driver.put)
+    rawset(_G, 'tube_take',    queue_driver.take)
+    rawset(_G, 'tube_delete',  queue_driver.delete)
+    rawset(_G, 'tube_release', queue_driver.release)
     --
 end
 
 return {
     init = init,
+    apply_config = apply_config,
     dependencies = {
         'cluster.roles.vshard-storage',
     },

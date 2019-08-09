@@ -16,13 +16,13 @@ local ok, err = cluster.cfg({
     workdir = './dev/output-' .. binary_port,
     advertise_uri = hostname .. ':' .. binary_port,
     cluster_cookie = 'secret-cluster-cookie',
-    bucket_count = 1000,
+    bucket_count = 10,
     http_port = http_port,
     roles = {
         'cluster.roles.vshard-storage',
         'cluster.roles.vshard-router',
-        'storage',
-        'api',
+        'queue.storage',
+        'queue.api',
     },
 }, {
     -- put your box.cfg arguments here
