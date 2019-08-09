@@ -35,13 +35,11 @@ function service.create(tube_name, options)
 end
 
 function service.put(tube_name, data, options)
+
     local bucket_count = vshard.router.bucket_count()
     local bucket_id = math.random(bucket_count)
 
-    local replica, err = vshard.router.route(bucket_id)
-
-    local ok, ret = pcall(remote_call, 'tube_put',
-        replica.master.uri,
+    local task = vshard.router.call(bucket_id, 'write', 'tube_put', {
         {
             tube_name = tube_name,
             bucket_id = bucket_id,
@@ -50,8 +48,9 @@ function service.put(tube_name, data, options)
             ttl       = options.ttl,
             data      = data,
             delay     = options.delay
-        })
-    return ret
+        }
+    })
+    return task
 end
 
 function service.take(tube_name, timeout)
