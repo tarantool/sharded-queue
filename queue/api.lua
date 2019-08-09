@@ -34,29 +34,6 @@ function service.create(tube_name, options)
     return true
 end
 
-function service.old_create(tube_name, options)
-    -- create tube --
-
-    local replicasets = cluster.admin.get_replicasets()
-    local output = {}
-
-    for _, replica in pairs(replicasets) do
-        if utils.array_contains(replica.roles, 'storage') then
-            -- execute only for storage master --
-
-            local ok, ret = pcall(remote_call, 'tube_create',
-                replica.master.uri,
-                {
-                    name = tube_name,
-                    options = options 
-                })
-            table.insert(output, tostring(ret))
-        end
-    end
-
-    return output
-end
-
 function service.put(tube_name, data, options)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id = math.random(bucket_count)
