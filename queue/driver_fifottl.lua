@@ -165,19 +165,17 @@ function driver.put(args)
         next_event = time.event(ttl)
     end
 
-    box.begin()
     local task = box.space[args.tube_name]:insert {
         task_id,                -- task_id
         args.bucket_id,         -- bucket_id
         status,                 -- state
-        time.time(),                 -- created
+        time.time(),            -- created
         priority,               -- priority
-        time.time(ttl),              -- ttl
+        time.time(ttl),         -- ttl
         next_event,             -- next_event
         args.data,              -- data
         idx                     -- index
     }
-    box.commit()
     return task
 end
 
