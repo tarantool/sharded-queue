@@ -17,30 +17,27 @@ local function init(opts)
     if opts.is_master then
         --
         box.schema.user.grant('guest',
-            'cread,write,execute',
+            'read,write',
             'universe',
             nil, { if_not_exists = true })
         --
-        box.schema.func.create('tube_create',  {if_not_exists = true})
-        box.schema.func.create('tube_put',     {if_not_exists = true})
-        box.schema.func.create('tube_take',    {if_not_exists = true})
-        box.schema.func.create('tube_delete',  {if_not_exists = true})
-        box.schema.func.create('tube_release', {if_not_exists = true})
-        --
-        box.schema.user.grant('guest', 'execute', 'function', 'tube_create',  {if_not_exists = true})
-        box.schema.user.grant('guest', 'execute', 'function', 'tube_put',     {if_not_exists = true})
-        box.schema.user.grant('guest', 'execute', 'function', 'tube_take',    {if_not_exists = true})
-        box.schema.user.grant('guest', 'execute', 'function', 'tube_delete',  {if_not_exists = true})
-        box.schema.user.grant('guest', 'execute', 'function', 'tube_release', {if_not_exists = true})
+        rawset(_G, 'tube_put', queue_driver.put)
+        box.schema.func.create('tube_put')
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_put')
+        
+        rawset(_G, 'tube_take', queue_driver.take)
+        box.schema.func.create('tube_take')
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_take')
+        
+        rawset(_G, 'tube_delete', queue_driver.delete)
+        box.schema.func.create('tube_delete')
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_delete')
+        
+        rawset(_G, 'tube_release', queue_driver.release)
+        box.schema.func.create('tube_release')
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_release')
         --
     end
-    --
-    rawset(_G, 'tube_create',  queue_driver.create)
-    rawset(_G, 'tube_put',     queue_driver.put)
-    rawset(_G, 'tube_take',    queue_driver.take)
-    rawset(_G, 'tube_delete',  queue_driver.delete)
-    rawset(_G, 'tube_release', queue_driver.release)
-    --
 end
 
 return {

@@ -17,19 +17,18 @@ local method = {}
 
 function method.put(self, data, options)
     local options = options or {}
-    local task = queue._conn:call('queue.put',
+    local task = queue._conn:call('tube_put',
         {
             self.tube_name,
             data,
             options
         })
-
     return task
 end
 
 function method.take(self, timeout)
     local timeout = time.time(timeout or time.TIMEOUT_INFINITY)
-    local task = queue._conn:call('queue.take',
+    local task = queue._conn:call('tube_take',
         {
             self.tube_name,
             timeout
@@ -40,7 +39,7 @@ end
 
 function method.delete(self, task_id)
     -- local options = options or {}
-    local task = queue._conn:call('queue.delete',
+    local task = queue._conn:call('tube_delete',
         {
             self.tube_name,
             task_id
@@ -50,7 +49,7 @@ function method.delete(self, task_id)
 end
 
 function method.release(self, task_id)
-    local task = queue._conn:call('queue.release',
+    local task = queue._conn:call('tube_release',
         {
             self.tube_name,
             task_id
@@ -61,7 +60,7 @@ end
 local function create_tube(tube_name, options)
     local options = options or {}
 
-    local ok = queue._conn:call('queue.create',
+    local ok = queue._conn:call('create_tube',
         {
             tube_name,
             options
@@ -85,10 +84,7 @@ function queue.init(router_uri)
     if not queue._conn:is_connected() then
         return false
     end
-    if queue._conn:eval("queue = require('cluster').service_get('queue.api').service") then
-        return false
-    end
-
+    
     queue.create_tube = create_tube
 
     function queue.stop()
