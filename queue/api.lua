@@ -81,8 +81,6 @@ function service.take(tube_name, timeout)
     end
     local task = take_task()
 
-    log.info(task)
-
     return task
 end
 
@@ -127,15 +125,35 @@ local function apply_config(cfg, opts)
 end
 
 local function init(opts)
-    rawset(_G, 'vshard', vshard)
+    
+
     if opts.is_master then
         box.schema.user.grant('guest',
             'read,write,execute',
             'universe',
             nil, { if_not_exists = true }
         )
-    end
+        
+        rawset(_G, 'create_tube', service.create)
+        box.schema.func.create('create_tube')
+        box.schema.user.grant('guest', 'execute', 'function', 'create_tube')
 
+        rawset(_G, 'tube_put', service.put)
+        box.schema.func.create('tube_put')
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_put')
+
+        rawset(_G, 'tube_take', service.take)
+        box.schema.func.create('tube_take')
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_take')
+
+        rawset(_G, 'tube_release', service.release)
+        box.schema.func.create('tube_release')
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_release')
+
+        rawset(_G, 'tube_delete', service.delete)
+        box.schema.func.create('tube_delete')
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_delete')
+    end
 end
 
 return {
