@@ -7,6 +7,7 @@ local log = require('log')
 local time = require('queue.time')
 local state = require('queue.state')
 local utils = require('queue.utils')
+
 local tube = require('queue.driver_fifottl')
 
 
@@ -53,6 +54,21 @@ function service.put(tube_name, data, options)
     return task
 end
 
+-- function for try get task from instance --   
+function take_task(tube_name, storages)
+    for _, instance_uri in pairs(storages) do
+        -- try take task from all instance
+        local ok, ret = pcall(remote_call, 'tube_take',
+            instance_uri,
+            {
+                tube_name = tube_name
+            })
+        if ret ~= nil then
+            return ret
+        end
+    end
+end
+
 function service.take(tube_name, timeout)
     -- take task from tube --
 
@@ -65,23 +81,38 @@ function service.take(tube_name, timeout)
     end
     utils.array_shuffle(storages)
 
-    -- function for try get task from instance --   
-    local take_task = function ()
-        for _, instance_uri in pairs(storages) do
-            -- try take task from all instance
-            local ok, ret = pcall(remote_call, 'tube_take',
-                instance_uri,
-                {
-                    tube_name = tube_name
-                })
-            if ret ~= nil then
-                return ret
-            end
-        end
+    local task = take_task(tube_name, storages)
+    
+    if task ~= nil then
+        return task
     end
-    local task = take_task()
 
-    return task
+    timeout = time.nano(timeout) or time.TIMEOUT_INFINITY
+
+    local frequency = 1000
+    local wait_part = 0.01 -- maximum waiting time in second
+
+    local calc_part = time.sec(timeout / frequency) 
+    
+    if calc_part < wait_part then
+        wait_part = tonumber(calc_part)
+    end
+
+    while timeout ~= 0 do
+        local begin = time.cur()
+
+        local cond = fiber.cond()
+        cond:wait(wait_part)
+
+        task = take_task(tube_name, storages)
+
+        if task ~= nil then
+            return task
+        end
+
+        local duration = time.cur() - begin
+        timeout = timeout > duration and timeout - duration or 0
+    end
 end
 
 function service.delete(tube_name, task_id)
