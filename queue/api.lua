@@ -36,21 +36,16 @@ function service.create(tube_name, options)
 end
 
 function service.put(tube_name, data, options)
-
     local bucket_count = vshard.router.bucket_count()
     local bucket_id = math.random(bucket_count)
+    
+    options.data = data
+    options.tube_name = tube_name
+    options.bucket_id = bucket_id
+    options.bucket_count = bucket_count
 
-    local task = vshard.router.call(bucket_id, 'write', 'tube_put', {
-        {
-            tube_name = tube_name,
-            bucket_id = bucket_id,
-            bucket_count = bucket_count,
-            priority  = options.priority,
-            ttl       = options.ttl,
-            data      = data,
-            delay     = options.delay
-        }
-    })
+    local task = vshard.router.call(bucket_id,
+        'write', 'tube_put', { options })
     return task
 end
 
@@ -78,7 +73,7 @@ function service.take(tube_name, timeout)
         if utils.array_contains(replica.roles, 'queue.storage') then
             table.insert(storages, replica.master.uri)
         end
-    end
+    end 
     utils.array_shuffle(storages)
 
     local task = take_task(tube_name, storages)
@@ -147,6 +142,32 @@ function service.release(tube_name, task_id)
     return task
 end
 
+function service.touch(tube_name, task_id, delta)
+    if delta == nil or delta <= 0 then
+        return
+    end
+
+    if delta >= time.MAX_TIMEOUT then
+        delta = time.TIMEOUT_INFINITY
+    else
+        delta = time.nano(delta)
+    end
+    log.info("TOUCH")
+    log.info(task_id)
+    local bucket_count = vshard.router.bucket_count()
+    local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
+
+    local task = vshard.router.call(bucket_id, 'write', 'tube_touch', {
+        {
+            tube_name = tube_name,
+            task_id = task_id,
+            delta = delta    
+        }
+    })
+    log.info(task)
+    return task
+end
+
 local function validate_config(config_new, config_old)
     return true
 end
@@ -184,6 +205,10 @@ local function init(opts)
         rawset(_G, 'tube_delete', service.delete)
         box.schema.func.create('tube_delete')
         box.schema.user.grant('guest', 'execute', 'function', 'tube_delete')
+
+        rawset(_G, 'tube_touch', service.touch)
+        box.schema.func.create('tube_touch')
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_touch')
     end
 end
 

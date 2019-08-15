@@ -35,14 +35,14 @@ function g.test_put_taken()
     for _, data in pairs(tasks_data) do
         local task = tube:put(data, {})
         -- print(task[1])
-        table.insert(task_ids, task[1])
+        table.insert(task_ids, task[helper.index.task_id])
     end
     -- try taken this tasks
     local taken_task_ids = {}
     for i = 1, #task_ids do
         local task = tube:take()
-        t.assert_equals(task[3], helper.state.TAKEN)
-        table.insert(taken_task_ids, task[1])
+        t.assert_equals(task[helper.index.status], helper.state.TAKEN)
+        table.insert(taken_task_ids, task[helper.index.task_id])
     end
     -- compare
     t.assert_equals(helper.equal_sets(task_ids, taken_task_ids), true)
@@ -67,7 +67,7 @@ function g.test_delete()
     local task_ids = {}
     for _, data in pairs(tasks_data) do
         local task = tube:put(data, {})
-        table.insert(task_ids, task[1])
+        table.insert(task_ids, task[helper.index.task_id])
     end
 
     -- delete few tasks
@@ -75,15 +75,15 @@ function g.test_delete()
     local deleted_tasks = {}
 
     for i = 1, deleted_tasks_count do
-        table.insert(deleted_tasks, tube:delete(task_ids[i])[1])
+        table.insert(deleted_tasks, tube:delete(task_ids[i])[helper.index.task_id])
     end
 
     -- taken tasks
     local taken_task_ids = {}
     for i = 1, task_count - deleted_tasks_count do
         local task = tube:take()
-        t.assert_equals(task[3], helper.state.TAKEN)
-        table.insert(taken_task_ids, task[1])
+        t.assert_equals(task[helper.index.status], helper.state.TAKEN)
+        table.insert(taken_task_ids, task[helper.index.task_id])
     end
     --
     local excepted_task_ids = {}
@@ -113,8 +113,8 @@ function g.test_release()
     local task_ids = {}
     for _, data in pairs(tasks_data) do
         local task = tube:put(data, {})
-        t.assert_equals(task[3], helper.state.READY)
-        table.insert(task_ids, task[1])
+        t.assert_equals(task[helper.index.status], helper.state.READY)
+        table.insert(task_ids, task[helper.index.task_id])
     end
 
     -- take few tasks
@@ -123,21 +123,21 @@ function g.test_release()
 
     for i = 1, taken_task_count do
         local task = tube:take()
-        t.assert_equals(task[3], helper.state.TAKEN)
-        table.insert(taken_task_ids, task[1])
+        t.assert_equals(task[helper.index.status], helper.state.TAKEN)
+        table.insert(taken_task_ids, task[helper.index.task_id])
     end
 
     t.assert_equals(helper.subset_of(taken_task_ids, task_ids), true)
 
     for _, task_id in pairs(taken_task_ids) do
         local task = tube:release(task_id)
-        t.assert_equals(task[3], helper.state.READY)
+        t.assert_equals(task[helper.index.status], helper.state.READY)
     end
 
     local result_task_id = {}
 
     for i = 1, task_count do
-        table.insert(result_task_id, tube:take()[1])
+        table.insert(result_task_id, tube:take()[helper.index.task_id])
     end
 
     t.assert_equals(helper.equal_sets(task_ids, result_task_id), true)
