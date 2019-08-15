@@ -36,6 +36,10 @@ local function init(opts)
         rawset(_G, 'tube_release', queue_driver.release)
         box.schema.func.create('tube_release')
         box.schema.user.grant('guest', 'execute', 'function', 'tube_release')
+
+        rawset(_G, 'tube_touch', queue_driver.touch)
+        box.schema.func.create('tube_touch')
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_touch')
         --
     end
 end

@@ -1,9 +1,9 @@
 local vshard = require('vshard')
+local fiber = require('fiber')
 local state = require('queue.state')
 local utils = require('queue.utils')
 local time = require('queue.time')
-local fiber = require('fiber')
-
+local log = require('log')
 local driver = {}
 
 local index = {
@@ -13,32 +13,99 @@ local index = {
     created    = 4,
     priority   = 5,
     ttl        = 6,
-    next_event = 7,
-    data       = 8,
-    index      = 9
+    ttr        = 7,
+    next_event = 8,
+    data       = 9,
+    index      = 10
 }
 
--- FIBERS METHODs --
+local function is_expired(task)
+    return (task[index.created] + task[index.ttl]) <= time.cur()
+end
 
+local fibers_info = {}
+
+-- FIBERS METHODS --
 local function fiber_iteration(tube_name, processed)
-    local curr = time.time()
+    local cur  = time.cur()
     local task = nil
-    local estimated = time.TIMEOUT_INFINITY
+    local estimated = time.MAX_TIMEOUT
 
     -- delayed tasks
 
-    task = nil  
+    task = box.space[tube_name].index.watch:min { state.DELAYED }
+    if task ~= nil and task[index.status] == state.DELAYED then
+        if cur >= task[index.next_event] then
+            task = box.space[tube_name]:update(task[index.task_id], {
+                { '=', index.status,     state.READY },
+                { '=', index.next_event, task[index.created] + task[index.ttl] }
+            })
+            estimated = 0
+            processed = processed + 1
+        else
+            estimated = time.sec(tonumber(task[index.next_event] - cur))
+        end
+    end
+
+    -- ttl tasks
+
+    for _, s in pairs({ state.READY, state.BURIED }) do
+        task = box.space[tube_name].index.watch:min { s }
+        if task ~= nil and task[index.status] == s then
+            if cur >= task[index.next_event] then
+                task = box.space[tube_name]:delete(task[index.task_id]):transform(index.status, 1, state.DONE)
+                estimated = 0
+                processed = processed + 1
+            else
+                local e = time.sec(tonumber(task[index.next_event] - cur))
+                estimated = e < estimated and e or estimated
+            end
+        end
+    end
+
+    -- ttr tasks
+
+    task = box.space[tube_name].index.watch:min { state.TAKEN }
+    if task and task[index.status] == state.TAKEN then
+        if cur >= task[index.next_event] then
+            task = box.space[tube_name]:update(task[index.task_id], {
+                { '=', index.status,     state.READY },
+                { '=', index.next_event, task[index.created] + task[index.ttl] }
+            })
+            estimated = 0
+            processed = processed + 1
+        else
+            local e = time.sec(tonumber(task[index.next_event] - cur))
+            estimated = e < estimated and e or estimated
+        end
+    end
+
+    if estimated > 0 or processed > 1000 then
+        estimated = estimated > 0 and estimated or 0
+        
+        local cond = fiber.cond()
+        fibers_info[tube_name] = {
+            cond = cond
+        }
+        -- fibers_info.tube_name.cond = cond
+        -- fibers_info.tube_name.id   = fiber.info():id()
+
+        cond:wait(estimated)
+    end
+
+    return processed
 end
 
 local function fiber_common(tube_name)
     fiber.name(tube_name)
+
     local processed = 0
 
     while true do
         if not box.cfg.read_only then
             local ok, ret = pcall(fiber_iteration, tube_name, processed)
 
-            if not ok and not err.code == box.error.READONLY then
+            if not ok and not ret.code == box.error.READONLY then
                 return 1
             elseif ok then
                 processed = ret
@@ -59,6 +126,7 @@ function driver.check(name)
     end
 end
 
+
 function driver.create(args)
     local space_options = {}
 
@@ -75,6 +143,7 @@ function driver.create(args)
         { 'created',    'unsigned' },
         { 'priority',   'unsigned' },
         { 'ttl',        'unsigned' },
+        { 'ttr',        'unsigned' },
         { 'next_event', 'unsigned' },
         { 'data',       '*'        },
         { 'index',      'unsigned' }
@@ -125,13 +194,8 @@ function driver.create(args)
         unique = false,
         if_not_exists = if_not_exists
     })
-
-end
-
-function driver.get_task(args)
-    -- getting task without change state --
-    local task = box.space[args.tube_name].index.status:min { state.READY }
-    return task
+    -- fibers_info[args.name].fiber =? fiber.create(fiber_common, args.name)
+    local tube_fiber = fiber.create(fiber_common, args.name)
 end
 
 function get_index(tube_name, bucket_id)
@@ -144,11 +208,13 @@ function get_index(tube_name, bucket_id)
 end
 
 function driver.put(args)
-
     local delay = args.delay or 0
     local priority = args.priority or 0
     local status = state.READY
-    local ttl = args.ttl or time.TIMEOUT_INFINITY
+    
+    local ttl = args.ttl or time.MAX_TIMEOUT
+    local ttr = args.ttr or ttl
+    
     local idx = get_index(args.tube_name, args.bucket_id)
 
     local next_event
@@ -162,6 +228,7 @@ function driver.put(args)
         ttl = ttl + delay
         next_event = time.event(delay)
     else
+        status = state.READY
         next_event = time.event(ttl)
     end
 
@@ -169,27 +236,48 @@ function driver.put(args)
         task_id,                -- task_id
         args.bucket_id,         -- bucket_id
         status,                 -- state
-        time.time(),            -- created
+        time.cur(),             -- created
         priority,               -- priority
-        time.time(ttl),         -- ttl
+        time.nano(ttl),         -- ttl
+        time.nano(ttr),         -- ttr
         next_event,             -- next_event
         args.data,              -- data
         idx                     -- index
     }
+
+    fibers_info[args.tube_name].cond:signal()
     return task
 end
 
 function driver.take(args)
-    for _, task in
+    local task = nil
+    for _, tuple in
         box.space[args.tube_name].index.status:pairs(nil, {state.READY} ) do
-        if task ~= nil and task[index.status] == state.READY then
-            return box.space[args.tube_name]:update(task[index.task_id], { {'=', index.status, state.TAKEN} })
+        if tuple ~= nil and tuple[index.status] == state.READY then
+            --
+            task = tuple
+            break
         end
     end
-end
 
-function driver.touch(tube_name, ttr)
-    -- error('fifo queue does not support touch')
+    if task == nil or is_expired(task) then
+        return
+    end
+
+    local next_event = time.cur() + task[index.ttr]
+    local dead_event = task[index.created] + task[index.ttl]
+    
+    if next_event > dead_event then
+        next_event = dead_event
+    end
+
+    task = box.space[args.tube_name]:update(task[index.task_id], {
+        { '=', index.status,     state.TAKEN },
+        { '=', index.next_event, next_event  }
+    })
+
+    fibers_info[args.tube_name].cond:signal()
+    return task
 end
 
 function driver.delete(args)
@@ -200,14 +288,37 @@ function driver.delete(args)
     if task ~= nil then
         task = task:transform(index.status, 1, state.DONE)
     end
-    return task
-end
--- TODO: this 
-function driver.release(args)
 
-    local task = box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.READY} })
+    fibers_info[args.tube_name].cond:signal()
     return task
 end
+
+function driver.touch(args)
+    local op = '+'
+    if args.delta == time.TIMEOUT_INFINITY then
+        op = '='
+    end
+    local task = box.space[args.tube_name]:update(args.task_id,
+        {
+            { op, index.next_event, args.delta },
+            { op, index.ttl,        args.delta },
+            { op, index.ttr,        args.delta }
+        })
+    fibers_info[args.tube_name].cond:signal()
+    return task
+end
+
+function driver.peek(tube_name, task_id)
+    return box.space[tube_name].space:get(task_id)
+end
+
+function driver.release(args)
+    local task = box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.READY} })
+
+    fibers_info[args.tube_name].cond:signal()
+    return task
+end
+
 
 function driver.bury(args)
     local task = box.space[args.tube_name]:update(args.id, { {'=', index.status, state.BURIED} })

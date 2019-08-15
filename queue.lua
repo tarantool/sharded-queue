@@ -27,7 +27,6 @@ function method.put(self, data, options)
 end
 
 function method.take(self, timeout)
-    local timeout = time.time(timeout or time.TIMEOUT_INFINITY)
     local task = queue._conn:call('tube_take',
         {
             self.tube_name,
@@ -57,6 +56,16 @@ function method.release(self, task_id)
     return task
 end
 
+function method.touch(self, task_id, delay)
+    local task = queue._conn:call('tube_touch',
+        {
+            self.tube_name,
+            task_id,
+            delay
+        })
+    return task
+end
+
 local function create_tube(tube_name, options)
     local options = options or {}
 
@@ -77,6 +86,14 @@ local function create_tube(tube_name, options)
     end
 end
 
+local function use_exist_tube(tube_name)
+    local self = setmetatable({
+        tube_name = tube_name,
+    }, {
+        __index = method
+    })
+    return self
+end
 
 function queue.init(router_uri)
     queue._conn = netbox.connect(router_uri)
@@ -86,7 +103,8 @@ function queue.init(router_uri)
     end
     
     queue.create_tube = create_tube
-
+    queue.__use_exist_tube = use_exist_tube
+    
     function queue.stop()
         queue._conn:close()
     end

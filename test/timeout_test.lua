@@ -6,15 +6,6 @@ local t = require('luatest')
 
 local g = t.group('timeout_test')
 
-function math.sign(val)
-    return (val >= 0 and 1) or -1
-end
-
-function math.round(val, bracket)
-    bracket = bracket or 1
-    return math.floor(val / bracket + math.sign(val) * 0.5) * bracket
-end
-
 --
 
 g.before_all = function()
@@ -55,7 +46,7 @@ function g.test_try_waiting()
     local waiting_time = tonumber(channel:get()) / 1e6
     local task = channel:get()
 
-    t.assert_equals(math.round(waiting_time, 0.1), 3)
+    t.assert_equals(helper.round(waiting_time, 0.1), 3)
     t.assert_equals(task, nil)
 
     channel:close()
@@ -81,8 +72,8 @@ function g.test_wait_put_taking()
     local waiting_time = tonumber(channel:get()) / 1e6
     local task = channel:get()
 
-    t.assert_equals(math.round(waiting_time, 0.1), timeout / 2)
-    t.assert_equals(task[8], 'simple_task')
+    t.assert_equals(helper.round(waiting_time, 0.1), timeout / 2)
+    t.assert_equals(task[helper.index.data], 'simple_task')
 
     channel:close()
 end

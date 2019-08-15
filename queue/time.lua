@@ -13,14 +13,14 @@ function time.sec(tm)
 end
 
 function time.cur()
-    return fiber.time64()
+    return 0ULL + fiber.time64()
 end
 
 function time.nano(tm)
     if tm == nil then
         return
     end
-    return tm * 1e6
+    return 0ULL + tm * 1e6
 end
 
 function time.time(tm)
