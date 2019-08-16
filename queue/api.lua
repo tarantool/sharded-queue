@@ -152,8 +152,7 @@ function service.touch(tube_name, task_id, delta)
     else
         delta = time.nano(delta)
     end
-    log.info("TOUCH")
-    log.info(task_id)
+
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
@@ -166,6 +165,58 @@ function service.touch(tube_name, task_id, delta)
     })
     log.info(task)
     return task
+end
+
+function service.ask(tube_name, task_id)
+    -- task delete from tube --
+
+    local bucket_count = vshard.router.bucket_count()
+    local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
+
+    local task = vshard.router.call(bucket_id, 'write', 'tube_ask', {
+        {
+            tube_name = tube_name,
+            task_id = task_id    
+        }
+    })
+
+    return task
+end
+
+function service.statistic(tube_name)
+    log.info('statistic')
+    log.info(tube_name)
+    if not tube_name then
+        return
+    end
+    -- collect stats from all storages
+    local stats_collection = {}
+    for _, replica in pairs(cluster.admin.get_replicasets()) do
+        if utils.array_contains(replica.roles, 'queue.storage') then
+            local ok, ret = pcall(remote_call, 'tube_statistic',
+                replica.master.uri,
+                {
+                    tube_name = tube_name
+                })
+            log.info(ret)
+            if not ok then
+                return
+            end
+            table.insert(stats_collection, ret)
+        end
+    end
+    -- merge
+    local stat = stats_collection[1]
+    for i = 2, #stats_collection do
+        for name, count in pairs(stats_collection[i].tasks) do
+            stat.tasks[name] = stat.tasks[name] + count
+        end
+        for name, count in pairs(stats_collection[i].calls) do
+            stat.calls[name] = stat.calls[name] + count
+        end
+    end
+    --
+    return stat
 end
 
 local function validate_config(config_new, config_old)
@@ -209,6 +260,14 @@ local function init(opts)
         rawset(_G, 'tube_touch', service.touch)
         box.schema.func.create('tube_touch')
         box.schema.user.grant('guest', 'execute', 'function', 'tube_touch')
+
+        rawset(_G, 'tube_ask', service.ask)
+        box.schema.func.create('tube_ask')
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_ask')
+
+        rawset(_G, 'tube_statistic', service.statistic)
+        box.schema.func.create('tube_statistic')
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_statistic')
     end
 end
 
