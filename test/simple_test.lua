@@ -142,3 +142,37 @@ function g.test_release()
 
     t.assert_equals(helper.equal_sets(task_ids, result_task_id), true)
 end
+
+function g.test_bury_kick()
+    local tube_name = 'bury_kick_test'
+    local tube = queue.create_tube(tube_name)
+
+    local cur_stat = nil
+
+    local task_count = 10
+
+    -- returned tasks 
+    local task_ids = {}
+    for i = 1, task_count do
+        local task = tube:put(i, {})
+        table.insert(task_ids, task[helper.index.task_id])
+    end
+
+    -- bury few task
+    local bury_task_count = 5
+    for i = 1, bury_task_count do
+        local task = tube:bury(task_ids[i])
+        t.assert_equals(task[helper.index.status], helper.state.BURIED)
+    end
+
+    cur_stat = queue.statistics(tube_name)
+    t.assert_equals(cur_stat.tasks.buried, bury_task_count)
+    t.assert_equals(cur_stat.tasks.ready, task_count - bury_task_count)
+
+    -- try unbury few task > bury_task_count
+    t.assert_equals(tube:kick(bury_task_count + 3), bury_task_count)
+    
+    cur_stat = queue.statistics(tube_name)
+    t.assert_equals(cur_stat.calls.kick, bury_task_count)
+    t.assert_equals(cur_stat.tasks.ready, task_count)
+end

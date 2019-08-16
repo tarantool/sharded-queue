@@ -183,6 +183,55 @@ function service.ask(tube_name, task_id)
     return task
 end
 
+function service.bury(tube_name, task_id)
+    -- task bury --
+
+    local bucket_count = vshard.router.bucket_count()
+    local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
+
+    local task = vshard.router.call(bucket_id, 'write', 'tube_bury', {
+        {
+            tube_name = tube_name,
+            task_id = task_id    
+        }
+    })
+
+    return task
+end
+
+function service.kick(tube_name, count)
+    -- try kick few tasks --
+
+    local storages = {}
+    for _, replica in pairs(cluster.admin.get_replicasets()) do
+        if utils.array_contains(replica.roles, 'queue.storage') then
+            table.insert(storages, replica.master.uri)
+        end
+    end
+
+    local kicked_count = 0 -- count kicked task
+    for _, instance_uri in pairs(storages) do
+        local ok, k = pcall(remote_call, 'tube_kick',
+            instance_uri,
+            {
+                tube_name = tube_name,
+                count     = count - kicked_count
+            })
+        if not ok then
+            log.error(k)
+            return
+        end
+        
+        kicked_count = kicked_count + k
+        
+        if kicked_count == count then
+            break
+        end
+    end
+
+    return kicked_count
+end
+
 function service.statistic(tube_name)
     log.info('statistic')
     log.info(tube_name)
@@ -264,6 +313,14 @@ local function init(opts)
         rawset(_G, 'tube_ask', service.ask)
         box.schema.func.create('tube_ask')
         box.schema.user.grant('guest', 'execute', 'function', 'tube_ask')
+
+        rawset(_G, 'tube_bury', service.bury)
+        box.schema.func.create('tube_bury')
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_bury')
+
+        rawset(_G, 'tube_kick', service.kick)
+        box.schema.func.create('tube_kick')
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_kick')
 
         rawset(_G, 'tube_statistic', service.statistic)
         box.schema.func.create('tube_statistic')
