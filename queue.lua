@@ -75,6 +75,24 @@ function method.ask(self, task_id)
     return task
 end
 
+function method.bury(self, task_id)
+    local task = queue._conn:call('tube_bury',
+        {
+            self.tube_name,
+            task_id
+        })
+    return task
+end
+
+function method.kick(self, count)
+    local k = queue._conn:call('tube_kick',
+        {
+            self.tube_name,
+            count
+        })
+    return k
+end
+
 local function statistics(tube_name)
     return queue._conn:call('tube_statistic', { tube_name })
 end

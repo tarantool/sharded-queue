@@ -32,9 +32,11 @@ local function init(opts)
                 { 'put',       'unsigned' },
                 { 'delete',    'unsigned' },
                 { 'touch',     'unsigned' },
+                { 'ask',       'unsigned' },
+                { 'release',   'unsigned' }
             }
         })
-
+    
         space_stat:create_index('primary', {
             type = 'HASH',
             parts = {
@@ -65,6 +67,14 @@ local function init(opts)
         rawset(_G, 'tube_ask', queue_driver.ask)
         box.schema.func.create('tube_ask')
         box.schema.user.grant('guest', 'execute', 'function', 'tube_ask')
+
+        rawset(_G, 'tube_bury', queue_driver.bury)
+        box.schema.func.create('tube_bury')
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_bury')
+
+        rawset(_G, 'tube_kick', queue_driver.kick)
+        box.schema.func.create('tube_kick')
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_kick')
 
         rawset(_G, 'tube_statistic', queue_driver.statistic)
         box.schema.func.create('tube_statistic')
