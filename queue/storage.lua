@@ -21,6 +21,27 @@ local function init(opts)
             'universe',
             nil, { if_not_exists = true })
         --
+
+        local space_stat = box.schema.space.create('_stat', {
+            format = {
+                { 'tube_name', 'string'   },
+                { 'done',      'unsigned' },
+                { 'take',      'unsigned' },
+                { 'kick',      'unsigned' },
+                { 'bury',      'unsigned' },
+                { 'put',       'unsigned' },
+                { 'delete',    'unsigned' },
+                { 'touch',     'unsigned' },
+            }
+        })
+
+        space_stat:create_index('primary', {
+            type = 'HASH',
+            parts = {
+                1, 'string'
+            }
+        })
+
         rawset(_G, 'tube_put', queue_driver.put)
         box.schema.func.create('tube_put')
         box.schema.user.grant('guest', 'execute', 'function', 'tube_put')
@@ -40,6 +61,14 @@ local function init(opts)
         rawset(_G, 'tube_touch', queue_driver.touch)
         box.schema.func.create('tube_touch')
         box.schema.user.grant('guest', 'execute', 'function', 'tube_touch')
+
+        rawset(_G, 'tube_ask', queue_driver.ask)
+        box.schema.func.create('tube_ask')
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_ask')
+
+        rawset(_G, 'tube_statistic', queue_driver.statistic)
+        box.schema.func.create('tube_statistic')
+        box.schema.user.grant('guest', 'execute', 'function', 'tube_statistic')
         --
     end
 end

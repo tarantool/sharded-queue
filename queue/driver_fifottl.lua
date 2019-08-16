@@ -19,6 +19,21 @@ local index = {
     index      = 10
 }
 
+local stat_pos = {
+    done = 2,
+    take = 3,
+    kick = 4,
+    bury = 5,
+    put  = 6,
+    delete = 7,
+    touch  = 8,
+    ask    = 9
+}
+
+local function update_stat(tube_name, name)
+    box.space._stat:update(tube_name, { {'+', stat_pos[name], 1} })
+end
+
 local function is_expired(task)
     return (task[index.created] + task[index.ttl]) <= time.cur()
 end
@@ -54,6 +69,8 @@ local function fiber_iteration(tube_name, processed)
         if task ~= nil and task[index.status] == s then
             if cur >= task[index.next_event] then
                 task = box.space[tube_name]:delete(task[index.task_id]):transform(index.status, 1, state.DONE)
+                -- box.sequence[tube_name]:next()
+                update_stat(tube_name, 'done')
                 estimated = 0
                 processed = processed + 1
             else
@@ -84,11 +101,10 @@ local function fiber_iteration(tube_name, processed)
         estimated = estimated > 0 and estimated or 0
         
         local cond = fiber.cond()
+        
         fibers_info[tube_name] = {
             cond = cond
         }
-        -- fibers_info.tube_name.cond = cond
-        -- fibers_info.tube_name.id   = fiber.info():id()
 
         cond:wait(estimated)
     end
@@ -194,9 +210,14 @@ function driver.create(args)
         unique = false,
         if_not_exists = if_not_exists
     })
-    -- fibers_info[args.name].fiber =? fiber.create(fiber_common, args.name)
+    -- create stat record about new tube
+    if not box.space._stat:get(args.name) then
+        box.space._stat:insert {args.name, 0, 0, 0, 0, 0, 0, 0, 0}
+    end
+    -- run fiber for tracking event
     local tube_fiber = fiber.create(fiber_common, args.name)
 end
+
 
 function get_index(tube_name, bucket_id)
     local task = box.space[tube_name].index.idx:max { bucket_id }
@@ -205,6 +226,36 @@ function get_index(tube_name, bucket_id)
     else
         return task[index.index] + 1
     end
+end
+
+function driver.statistic(args)
+    --
+    local stat = {
+        tasks = {},
+        calls = {}
+    }
+    -- collecting tasks count
+    local total = 0
+    for name, value in pairs(state) do
+        local count = box.space[args.tube_name].index.status:count(value)
+        stat.tasks[name:lower()] = count
+        total = total + count
+    end
+    stat.tasks.total = total
+
+    local stored_stat = box.space._stat:get(args.tube_name)
+
+    stat.tasks.done = stored_stat[stat_pos.done]
+    -- collect calls count
+    stat.calls.take = stored_stat[stat_pos.take]
+    stat.calls.kick = stored_stat[stat_pos.kick]
+    stat.calls.bury = stored_stat[stat_pos.bury]
+    stat.calls.put  = stored_stat[stat_pos.put]
+    stat.calls.delete = stored_stat[stat_pos.delete]
+    stat.calls.touch  = stored_stat[stat_pos.touch]
+    stat.calls.ask    = stored_stat[stat_pos.ask]
+    --
+    return stat
 end
 
 function driver.put(args)
@@ -245,6 +296,7 @@ function driver.put(args)
         idx                     -- index
     }
 
+    update_stat(args.tube_name, 'put')
     fibers_info[args.tube_name].cond:signal()
     return task
 end
@@ -276,6 +328,7 @@ function driver.take(args)
         { '=', index.next_event, next_event  }
     })
 
+    update_stat(args.tube_name, 'take')
     fibers_info[args.tube_name].cond:signal()
     return task
 end
@@ -289,6 +342,7 @@ function driver.delete(args)
         task = task:transform(index.status, 1, state.DONE)
     end
 
+    update_stat(args.tube_name, 'delete')
     fibers_info[args.tube_name].cond:signal()
     return task
 end
@@ -304,12 +358,29 @@ function driver.touch(args)
             { op, index.ttl,        args.delta },
             { op, index.ttr,        args.delta }
         })
+
+    update_stat(args.tube_name, 'touch')
     fibers_info[args.tube_name].cond:signal()
     return task
 end
 
-function driver.peek(tube_name, task_id)
-    return box.space[tube_name].space:get(task_id)
+function driver.ask(args)
+    box.begin()
+    local task = box.space[args.tube_name]:get(args.task_id)
+    box.space[args.tube_name]:delete(args.task_id)
+    box.commit()
+    if task ~= nil then
+        task = task:transform(index.status, 1, state.DONE)
+    end
+
+    update_stat(args.tube_name, 'ask')
+    update_stat(args.tube_name, 'done')
+    fibers_info[args.tube_name].cond:signal()
+    return task
+end
+
+function driver.peek(args)
+    return box.space[args.tube_name].space:get(args.task_id)
 end
 
 function driver.release(args)
@@ -318,7 +389,6 @@ function driver.release(args)
     fibers_info[args.tube_name].cond:signal()
     return task
 end
-
 
 function driver.bury(args)
     local task = box.space[args.tube_name]:update(args.id, { {'=', index.status, state.BURIED} })

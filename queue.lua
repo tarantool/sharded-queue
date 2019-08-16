@@ -66,6 +66,19 @@ function method.touch(self, task_id, delay)
     return task
 end
 
+function method.ask(self, task_id)
+    local task = queue._conn:call('tube_ask',
+        {
+            self.tube_name,
+            task_id
+        })
+    return task
+end
+
+local function statistics(tube_name)
+    return queue._conn:call('tube_statistic', { tube_name })
+end
+
 local function create_tube(tube_name, options)
     local options = options or {}
 
@@ -103,6 +116,7 @@ function queue.init(router_uri)
     end
     
     queue.create_tube = create_tube
+    queue.statistics = statistics
     queue.__use_exist_tube = use_exist_tube
     
     function queue.stop()
