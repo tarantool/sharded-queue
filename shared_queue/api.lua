@@ -70,7 +70,7 @@ function shared_queue.take(tube_name, timeout)
     local storages = {}
     for _, replica in pairs(cluster.admin.get_replicasets()) do
         log.info(replica.master.uri)
-        if utils.array_contains(replica.roles, 'queue.storage') then
+        if utils.array_contains(replica.roles, 'shared_queue.storage') then
             table.insert(storages, replica.master.uri)
         end
     end 
@@ -204,7 +204,7 @@ function shared_queue.kick(tube_name, count)
 
     local storages = {}
     for _, replica in pairs(cluster.admin.get_replicasets()) do
-        if utils.array_contains(replica.roles, 'queue.storage') then
+        if utils.array_contains(replica.roles, 'shared_queue.storage') then
             table.insert(storages, replica.master.uri)
         end
     end
@@ -241,7 +241,7 @@ function shared_queue.statistic(tube_name)
     -- collect stats from all storages
     local stats_collection = {}
     for _, replica in pairs(cluster.admin.get_replicasets()) do
-        if utils.array_contains(replica.roles, 'queue.storage') then
+        if utils.array_contains(replica.roles, 'shared_queue.storage') then
             local ok, ret = pcall(remote_call, 'tube_statistic',
                 replica.master.uri,
                 {

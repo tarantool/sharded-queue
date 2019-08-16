@@ -1,6 +1,26 @@
 #!/bin/bash -e
 
-# You can do it manually in web ui at http://localhost:8081/
+# simple topology
+
+# - 1 router
+# - 2 replicaset (storage and replica)
+
+# init instances
+
+mkdir -p ./dev
+
+export HOSTNAME='localhost'
+
+ALIAS='router'     BINARY_PORT=3301 HTTP_PORT=8081 CONSOLE_SOCK=/tmp/1.sock tarantool init.lua & echo $! >> ./dev/pids
+ALIAS='s1-master'  BINARY_PORT=3302 HTTP_PORT=8082 CONSOLE_SOCK=/tmp/2.sock tarantool init.lua & echo $! >> ./dev/pids
+ALIAS='s1-replica' BINARY_PORT=3303 HTTP_PORT=8083 CONSOLE_SOCK=/tmp/3.sock tarantool init.lua & echo $! >> ./dev/pids
+ALIAS='s2-master'  BINARY_PORT=3304 HTTP_PORT=8084 CONSOLE_SOCK=/tmp/4.sock tarantool init.lua & echo $! >> ./dev/pids
+ALIAS='s2-replica' BINARY_PORT=3305 HTTP_PORT=8085 CONSOLE_SOCk=/tmp/5.sock tarantool init.lua & echo $! >> ./dev/pids
+
+sleep 2.5
+echo "All instances started!"
+
+# assemble cluster
 
 curl -w "\n" -X POST http://127.0.0.1:8081/admin/api --fail -d@- <<'QUERY'
 {"query":
@@ -53,4 +73,5 @@ curl -w "\n" -X POST http://127.0.0.1:8081/admin/api --fail -d@- <<'QUERY'
     }"
 }
 QUERY
+
 echo " - Cluster is ready!"
