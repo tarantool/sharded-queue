@@ -37,17 +37,17 @@ curl -w "\n" -X POST http://127.0.0.1:8081/admin/api --fail -d@- <<'QUERY'
         e1: edit_replicaset(
             uuid: \"aaaaaaaa-0000-4000-b000-000000000000\"
             master: [\"aaaaaaaa-aaaa-4000-b000-000000000001\"]
-            roles: [\"queue.api\"]
+            roles: [\"shared_queue.api\"]
         )
         e2: edit_replicaset(
             uuid: \"bbbbbbbb-0000-4000-b000-000000000000\"
             master: [\"bbbbbbbb-bbbb-4000-b000-000000000001\"]
-            roles: [\"queue.storage\"]
+            roles: [\"shared_queue.storage\"]
         )
         e3: edit_replicaset(
             uuid: \"cccccccc-0000-4000-b000-000000000000\"
             master: [\"cccccccc-cccc-4000-b000-000000000001\"]
-            roles: [\"queue.storage\"]
+            roles: [\"shared_queue.storage\"]
         )
         bootstrap_vshard
     }"

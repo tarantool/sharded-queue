@@ -4,11 +4,11 @@ local vshard = require('vshard')
 local fiber = require('fiber')
 local log = require('log')
 
-local time = require('queue.time')
-local state = require('queue.state')
-local utils = require('queue.utils')
+local time = require('shared_queue.time')
+local state = require('shared_queue.state')
+local utils = require('shared_queue.utils')
 
-local tube = require('queue.driver_fifottl')
+local tube = require('shared_queue.driver_fifottl')
 
 
 local remote_call = function(method, instance_uri, args)
@@ -18,9 +18,9 @@ local remote_call = function(method, instance_uri, args)
     return ret
 end
 
-local service = {}
+local shared_queue = {}
 
-function service.create(tube_name, options)
+function shared_queue.create(tube_name, options)
     local tubes = cluster.config_get_deepcopy('tubes') or {}
 
     local key = function(x) return x.name end
@@ -35,7 +35,7 @@ function service.create(tube_name, options)
     return true
 end
 
-function service.put(tube_name, data, options)
+function shared_queue.put(tube_name, data, options)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id = math.random(bucket_count)
     
@@ -64,7 +64,7 @@ function take_task(tube_name, storages)
     end
 end
 
-function service.take(tube_name, timeout)
+function shared_queue.take(tube_name, timeout)
     -- take task from tube --
 
     local storages = {}
@@ -110,7 +110,7 @@ function service.take(tube_name, timeout)
     end
 end
 
-function service.delete(tube_name, task_id)
+function shared_queue.delete(tube_name, task_id)
     -- task delete from tube --
 
     local bucket_count = vshard.router.bucket_count()
@@ -126,7 +126,7 @@ function service.delete(tube_name, task_id)
     return task
 end
 
-function service.release(tube_name, task_id)
+function shared_queue.release(tube_name, task_id)
     -- task release from tube --
 
     local bucket_count = vshard.router.bucket_count()
@@ -142,7 +142,7 @@ function service.release(tube_name, task_id)
     return task
 end
 
-function service.touch(tube_name, task_id, delta)
+function shared_queue.touch(tube_name, task_id, delta)
     if delta == nil or delta <= 0 then
         return
     end
@@ -167,7 +167,7 @@ function service.touch(tube_name, task_id, delta)
     return task
 end
 
-function service.ask(tube_name, task_id)
+function shared_queue.ask(tube_name, task_id)
     -- task delete from tube --
 
     local bucket_count = vshard.router.bucket_count()
@@ -183,7 +183,7 @@ function service.ask(tube_name, task_id)
     return task
 end
 
-function service.bury(tube_name, task_id)
+function shared_queue.bury(tube_name, task_id)
     -- task bury --
 
     local bucket_count = vshard.router.bucket_count()
@@ -199,7 +199,7 @@ function service.bury(tube_name, task_id)
     return task
 end
 
-function service.kick(tube_name, count)
+function shared_queue.kick(tube_name, count)
     -- try kick few tasks --
 
     local storages = {}
@@ -232,7 +232,7 @@ function service.kick(tube_name, count)
     return kicked_count
 end
 
-function service.statistic(tube_name)
+function shared_queue.statistic(tube_name)
     log.info('statistic')
     log.info(tube_name)
     if not tube_name then
@@ -286,43 +286,43 @@ local function init(opts)
             nil, { if_not_exists = true }
         )
         
-        rawset(_G, 'create_tube', service.create)
+        rawset(_G, 'create_tube', shared_queue.create)
         box.schema.func.create('create_tube')
         box.schema.user.grant('guest', 'execute', 'function', 'create_tube')
 
-        rawset(_G, 'tube_put', service.put)
+        rawset(_G, 'tube_put', shared_queue.put)
         box.schema.func.create('tube_put')
         box.schema.user.grant('guest', 'execute', 'function', 'tube_put')
 
-        rawset(_G, 'tube_take', service.take)
+        rawset(_G, 'tube_take', shared_queue.take)
         box.schema.func.create('tube_take')
         box.schema.user.grant('guest', 'execute', 'function', 'tube_take')
 
-        rawset(_G, 'tube_release', service.release)
+        rawset(_G, 'tube_release', shared_queue.release)
         box.schema.func.create('tube_release')
         box.schema.user.grant('guest', 'execute', 'function', 'tube_release')
 
-        rawset(_G, 'tube_delete', service.delete)
+        rawset(_G, 'tube_delete', shared_queue.delete)
         box.schema.func.create('tube_delete')
         box.schema.user.grant('guest', 'execute', 'function', 'tube_delete')
 
-        rawset(_G, 'tube_touch', service.touch)
+        rawset(_G, 'tube_touch', shared_queue.touch)
         box.schema.func.create('tube_touch')
         box.schema.user.grant('guest', 'execute', 'function', 'tube_touch')
 
-        rawset(_G, 'tube_ask', service.ask)
+        rawset(_G, 'tube_ask', shared_queue.ask)
         box.schema.func.create('tube_ask')
         box.schema.user.grant('guest', 'execute', 'function', 'tube_ask')
 
-        rawset(_G, 'tube_bury', service.bury)
+        rawset(_G, 'tube_bury', shared_queue.bury)
         box.schema.func.create('tube_bury')
         box.schema.user.grant('guest', 'execute', 'function', 'tube_bury')
 
-        rawset(_G, 'tube_kick', service.kick)
+        rawset(_G, 'tube_kick', shared_queue.kick)
         box.schema.func.create('tube_kick')
         box.schema.user.grant('guest', 'execute', 'function', 'tube_kick')
 
-        rawset(_G, 'tube_statistic', service.statistic)
+        rawset(_G, 'tube_statistic', shared_queue.statistic)
         box.schema.func.create('tube_statistic')
         box.schema.user.grant('guest', 'execute', 'function', 'tube_statistic')
     end
@@ -330,7 +330,7 @@ end
 
 return {
     init = init,
-    service = service,
+    shared_queue = shared_queue,
     validate_config = validate_config,
     apply_config = apply_config,
 

@@ -2,7 +2,7 @@ local cluster = require('cluster')
 local checks = require('checks')
 local log = require('log')
 
-local queue_driver = require('queue.driver_fifottl')
+local queue_driver = require('shared_queue.driver_fifottl')
 
 local function apply_config(cfg, opts)
     if opts.is_master then
