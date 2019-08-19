@@ -1,5 +1,5 @@
 local helper = require('test.helper')
-local queue = require('queue')
+local netbox = require('net.box')
 local fiber = require('fiber')
 
 local t = require('luatest')
@@ -9,18 +9,19 @@ local g = t.group('timeout_test')
 --
 
 g.before_all = function()
-    queue.init('localhost:3301')
+    queue_conn = netbox.connect('localhost:3301')
 end
 
 g.after_all = function()
-    queue.stop()
+    queue_conn:close()
 end
 
+--
 
 local function task_take(tube, timeout, channel)
     -- fiber function for take task with timeout and calc duration time
     local start = fiber.time64()
-    local task = tube:take(timeout)
+    local task = queue_conn:call('tube:take', { timeout })
     local duration = fiber.time64() - start
     
     channel:put(duration)
@@ -35,7 +36,8 @@ function g.test_try_waiting()
     -- CHECK uptime and value - nil
 
     local tube_name = 'try_waiting_test'
-    local tube = queue.create_tube(tube_name)
+    queue_conn:eval('tube = shared_queue.create_tube(...)', { tube_name })
+
     local timeout = 3 -- second
 
     local channel = fiber.channel(2)
@@ -60,14 +62,14 @@ function g.test_wait_put_taking()
     -- CHEK what was taken successfully
 
     local tube_name = 'wait_put_taking_test'
-    local tube = queue.create_tube(tube_name)
+    queue_conn:eval('tube = shared_queue.create_tube(...)', { tube_name })
     local timeout = 3
 
     local channel = fiber.channel(2)
     local task_fiber = fiber.create(task_take, tube, timeout, channel)
 
     fiber.sleep(timeout / 2)
-    tube:put('simple_task')
+    queue_conn:call('tube:put', { 'simple_task' })
 
     local waiting_time = tonumber(channel:get()) / 1e6
     local task = channel:get()
