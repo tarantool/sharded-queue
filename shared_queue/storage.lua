@@ -43,6 +43,7 @@ local function init(opts)
         local space_stat = box.schema.space.create('_stat', {
             format = {
                 { 'tube_name', 'string'   },
+                -- statistic ---------------
                 { 'done',      'unsigned' },
                 { 'take',      'unsigned' },
                 { 'kick',      'unsigned' },
@@ -51,7 +52,11 @@ local function init(opts)
                 { 'delete',    'unsigned' },
                 { 'touch',     'unsigned' },
                 { 'ask',       'unsigned' },
-                { 'release',   'unsigned' }
+                { 'release',   'unsigned' },
+                -- default options ---------
+                { 'ttl',       'unsigned' },
+                { 'ttr',       'unsigned' },
+                { 'priority',  'unsigned' }
             }
         })
     
