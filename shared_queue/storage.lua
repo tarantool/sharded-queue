@@ -66,42 +66,14 @@ local function init(opts)
                 1, 'string'
             }
         })
-
-        rawset(_G, 'tube_put', queue_driver.put)
-        box.schema.func.create('tube_put')
-        box.schema.user.grant('guest', 'execute', 'function', 'tube_put')
         
-        rawset(_G, 'tube_take', queue_driver.take)
-        box.schema.func.create('tube_take')
-        box.schema.user.grant('guest', 'execute', 'function', 'tube_take')
-        
-        rawset(_G, 'tube_delete', queue_driver.delete)
-        box.schema.func.create('tube_delete')
-        box.schema.user.grant('guest', 'execute', 'function', 'tube_delete')
-        
-        rawset(_G, 'tube_release', queue_driver.release)
-        box.schema.func.create('tube_release')
-        box.schema.user.grant('guest', 'execute', 'function', 'tube_release')
+        for name, func in pairs(queue_driver.method) do            
+            local global_name = 'tube_' .. name
+            rawset(_G, global_name, func)    
+            box.schema.func.create(global_name)
+            box.schema.user.grant('guest', 'execute', 'function', global_name)    
+        end
 
-        rawset(_G, 'tube_touch', queue_driver.touch)
-        box.schema.func.create('tube_touch')
-        box.schema.user.grant('guest', 'execute', 'function', 'tube_touch')
-
-        rawset(_G, 'tube_ask', queue_driver.ask)
-        box.schema.func.create('tube_ask')
-        box.schema.user.grant('guest', 'execute', 'function', 'tube_ask')
-
-        rawset(_G, 'tube_bury', queue_driver.bury)
-        box.schema.func.create('tube_bury')
-        box.schema.user.grant('guest', 'execute', 'function', 'tube_bury')
-
-        rawset(_G, 'tube_kick', queue_driver.kick)
-        box.schema.func.create('tube_kick')
-        box.schema.user.grant('guest', 'execute', 'function', 'tube_kick')
-
-        rawset(_G, 'tube_statistic', queue_driver.statistic)
-        box.schema.func.create('tube_statistic')
-        box.schema.user.grant('guest', 'execute', 'function', 'tube_statistic')
         --
     end
 end

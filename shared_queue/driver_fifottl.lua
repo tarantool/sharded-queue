@@ -4,7 +4,6 @@ local state = require('shared_queue.state')
 local utils = require('shared_queue.utils')
 local time  = require('shared_queue.time')
 local log = require('log')
-local driver = {}
 
 local index = {
     task_id    = 1,
@@ -144,16 +143,7 @@ end
 
 -- QUEUE METHODs --
 
-function driver.check(name)
-    if box.space[name] ~= nil then
-        return true
-    else
-        return false
-    end
-end
-
-
-function driver.create(args)
+local function tube_create(args)
     local space_options = {}
 
     local if_not_exists = args.options.if_not_exists or true
@@ -234,7 +224,7 @@ function driver.create(args)
     local tube_fiber = fiber.create(fiber_common, args.name)
 end
 
-function driver.tubes()
+local function tubes()
     local tubes = {}
     for _, tuple in box.space._stat:pairs() do
         table.insert(tubes, tuple[1])
@@ -242,12 +232,12 @@ function driver.tubes()
     return tubes
 end
 
-function driver.drop(tube_name)
+local function tube_drop(tube_name)
     box.space._stat:delete(tube_name)
     box.space[tube_name]:drop()
 end
 
-function get_index(tube_name, bucket_id)
+local function get_index(tube_name, bucket_id)
     local task = box.space[tube_name].index.idx:max { bucket_id }
     if not task or task[index.bucket_id] ~= bucket_id then
         return 1
@@ -256,7 +246,9 @@ function get_index(tube_name, bucket_id)
     end
 end
 
-function driver.statistic(args)
+local method = {}
+
+function method.statistic(args)
     --
     if not box.space[args.tube_name] then
         return nil
@@ -287,7 +279,7 @@ function driver.statistic(args)
 end
 
 
-function driver.put(args)
+function method.put(args)
     local status = state.READY
     local delay = args.delay or 0
     -- setup params --
@@ -332,7 +324,7 @@ function driver.put(args)
     return task
 end
 
-function driver.take(args)
+function method.take(args)
     local task = nil
     for _, tuple in
         box.space[args.tube_name].index.status:pairs(nil, {state.READY} ) do
@@ -364,7 +356,7 @@ function driver.take(args)
     return task
 end
 
-function driver.delete(args)
+function method.delete(args)
     box.begin()
     local task = box.space[args.tube_name]:get(args.task_id)
     box.space[args.tube_name]:delete(args.task_id)
@@ -378,7 +370,7 @@ function driver.delete(args)
     return task
 end
 
-function driver.touch(args)
+function method.touch(args)
     local op = '+'
     if args.delta == time.TIMEOUT_INFINITY then
         op = '='
@@ -395,7 +387,7 @@ function driver.touch(args)
     return task
 end
 
-function driver.ask(args)
+function method.ask(args)
     box.begin()
     local task = box.space[args.tube_name]:get(args.task_id)
     box.space[args.tube_name]:delete(args.task_id)
@@ -410,11 +402,11 @@ function driver.ask(args)
     return task
 end
 
-function driver.peek(args)
+function method.peek(args)
     return box.space[args.tube_name].space:get(args.task_id)
 end
 
-function driver.release(args)
+function method.release(args)
     local task = box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.READY} })
     
     update_stat(args.tube_name, 'call', 'release')
@@ -422,14 +414,14 @@ function driver.release(args)
     return task
 end
 
-function driver.bury(args)
+function method.bury(args)
     update_stat(args.tube_name, 'call', 'bury')
     fibers_info[args.tube_name].cond:signal()
     return box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.BURIED} })
 end
 
 -- unbury several tasks
-function driver.kick(args)
+function method.kick(args)
     for i = 1, args.count do
         local task = box.space[args.tube_name].index.status:min { state.BURIED }
         if task == nil then
@@ -445,4 +437,9 @@ function driver.kick(args)
     return count
 end
 
-return driver
+return {
+    create = tube_create,
+    drop   = tube_drop,
+    tubes  = tubes,
+    method = method
+ }
