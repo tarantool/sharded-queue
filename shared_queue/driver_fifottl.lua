@@ -223,6 +223,18 @@ function driver.create(args)
     local tube_fiber = fiber.create(fiber_common, args.name)
 end
 
+function driver.tubes()
+    local tubes = {}
+    for _, tuple in box.space._stat:pairs() do
+        table.insert(tubes, tuple[1])
+    end
+    return tubes
+end
+
+function driver.drop(tube_name)
+    box.space._stat:delete(tube_name)
+    box.space[tube_name]:drop()
+end
 
 function get_index(tube_name, bucket_id)
     local task = box.space[tube_name].index.idx:max { bucket_id }
@@ -234,6 +246,10 @@ function get_index(tube_name, bucket_id)
 end
 
 function driver.statistic(args)
+    --
+    if not box.space[args.tube_name] then
+        return nil
+    end
     --
     local stat = {
         tasks = {},
