@@ -221,12 +221,15 @@ end
 function shared_tube.drop(self)
     local tubes = cluster.config_get_deepcopy('tubes') or {}
     tubes[self.tube_name] = nil
+    shared_queue.tube[self.tube_name] = nil
 
     cluster.config_patch_clusterwide({ tubes = tubes })
     self = nil
 end
 
-local shared_queue = {}
+local shared_queue = {
+    tube = {}
+}
 
 function shared_queue.statistics(tube_name)
     if not tube_name then
@@ -278,6 +281,8 @@ function shared_queue.create_tube(tube_name, options)
     }, {
         __index = shared_tube
     })
+    shared_queue.tube[tube_name] = self
+
     return self
 end
 
