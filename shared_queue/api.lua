@@ -218,6 +218,14 @@ function shared_tube.kick(self, count)
     return kicked_count
 end
 
+function shared_tube.drop(self)
+    local tubes = cluster.config_get_deepcopy('tubes') or {}
+    tubes[self.tube_name] = nil
+
+    cluster.config_patch_clusterwide({ tubes = tubes })
+    self = nil
+end
+
 local shared_queue = {}
 
 function shared_queue.statistics(tube_name)
@@ -228,14 +236,17 @@ function shared_queue.statistics(tube_name)
     local stats_collection = {}
     for _, replica in pairs(cluster.admin.get_replicasets()) do
         if utils.array_contains(replica.roles, 'shared_queue.storage') then
+            --
             local ok, ret = pcall(remote_call, 'tube_statistic',
                 replica.master.uri,
                 {
                     tube_name = tube_name
                 })
-            if not ok then
+            --
+            if not ok or ret == nil then
                 return
             end
+            --
             table.insert(stats_collection, ret)
         end
     end
@@ -255,14 +266,11 @@ end
 
 function shared_queue.create_tube(tube_name, options)
     local tubes = cluster.config_get_deepcopy('tubes') or {}
-
-    local key = function(x) return x.name end
-    if utils.array_contains(tubes, tube_name, key) then
-        return false
+    if tubes[tube_name] ~= nil then
+        return nil
     end
 
-    table.insert(tubes, { name = tube_name, options = options or {} })
-
+    tubes[tube_name] = options or {}
     cluster.config_patch_clusterwide({ tubes = tubes })
 
     local self = setmetatable({

@@ -32,6 +32,11 @@ local stat_pos = {
         touch  = 8,
         ask    = 9,
         release = 10
+    },
+    options = {
+        ttl = 11,
+        ttr = 12,
+        priority = 13
     }
 }
 
@@ -216,13 +221,31 @@ function driver.create(args)
         if_not_exists = if_not_exists
     })
     -- create stat record about new tube
+    local ttl = args.options.ttl or time.MAX_TIMEOUT
+    local ttr = args.options.ttr or ttl
+    local priority = args.options.priority or 0
+
     if not box.space._stat:get(args.name) then
-        box.space._stat:insert {args.name, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+        box.space._stat:insert {
+            args.name, 0, 0, 0, 0, 0, 0, 0, 0, 0, ttl, ttr, priority
+        }
     end
     -- run fiber for tracking event
     local tube_fiber = fiber.create(fiber_common, args.name)
 end
 
+function driver.tubes()
+    local tubes = {}
+    for _, tuple in box.space._stat:pairs() do
+        table.insert(tubes, tuple[1])
+    end
+    return tubes
+end
+
+function driver.drop(tube_name)
+    box.space._stat:delete(tube_name)
+    box.space[tube_name]:drop()
+end
 
 function get_index(tube_name, bucket_id)
     local task = box.space[tube_name].index.idx:max { bucket_id }
@@ -234,6 +257,10 @@ function get_index(tube_name, bucket_id)
 end
 
 function driver.statistic(args)
+    --
+    if not box.space[args.tube_name] then
+        return nil
+    end
     --
     local stat = {
         tasks = {},
@@ -259,14 +286,17 @@ function driver.statistic(args)
     return stat
 end
 
+
 function driver.put(args)
-    local delay = args.delay or 0
-    local priority = args.priority or 0
     local status = state.READY
-    
-    local ttl = args.ttl or time.MAX_TIMEOUT
-    local ttr = args.ttr or ttl
-    
+    local delay = args.delay or 0
+    -- setup params --
+    local stat = box.space._stat:get(args.tube_name)
+
+    local ttl = args.ttl or stat[stat_pos.options.ttl]
+    local ttr = args.ttr or stat[stat_pos.options.ttr]
+    local priority = args.priority or stat[stat_pos.options.priority]
+
     local idx = get_index(args.tube_name, args.bucket_id)
 
     local next_event
