@@ -403,7 +403,7 @@ function method.ask(args)
 end
 
 function method.peek(args)
-    return box.space[args.tube_name].space:get(args.task_id)
+    return box.space[args.tube_name]:get(args.task_id)
 end
 
 function method.release(args)

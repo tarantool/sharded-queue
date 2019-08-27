@@ -218,6 +218,20 @@ function shared_tube.kick(self, count)
     return kicked_count
 end
 
+function shared_tube.peek(self, task_id)
+    local bucket_count = vshard.router.bucket_count()
+    local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
+
+    local task = vshard.router.call(bucket_id, 'write', 'tube_peek', {
+        {
+            tube_name = self.tube_name,
+            task_id = task_id    
+        }
+    })
+
+    return task
+end
+
 function shared_tube.drop(self)
     local tubes = cluster.config_get_deepcopy('tubes') or {}
     tubes[self.tube_name] = nil

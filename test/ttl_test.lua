@@ -26,8 +26,12 @@ function g.test_touch_task()
         'simple data',
         { ttl = 0.2, ttr = 0.1 }
     })
-
-    t.assert_equals(task[helper.index.data], 'simple data')
+    
+    local peek_task = queue_conn:call('tube:peek', {
+        task[helper.index.task_id]
+    })
+    t.assert_equals(peek_task[helper.index.status], helper.state.READY)    
+    t.assert_equals(peek_task[helper.index.data], 'simple data')
 
     local touched_task = queue_conn:call('tube:touch', {
         task[helper.index.task_id], 0.8
@@ -39,6 +43,9 @@ function g.test_touch_task()
 
     local taken_task = queue_conn:call('tube:take')
     t.assert_equals(taken_task[helper.index.task_id], task[helper.index.task_id])
+
+    peek_task = queue_conn:call('tube:peek', { task[helper.index.task_id] })
+    t.assert_equals(peek_task[helper.index.status], helper.state.TAKEN)        
 end
 
 
@@ -51,18 +58,39 @@ function g.test_delayed_tasks()
         'simple data',
         { delay = 1, ttl = 1, ttr = 0.1 }
     })
+    
+    local peek_task = queue_conn:call('tube:peek', {
+        task[helper.index.task_id]
+    })
 
     -- delayed task was not taken
-    t.assert_equals(task[helper.index.status], helper.state.DELAYED)
+    t.assert_equals(peek_task[helper.index.status], helper.state.DELAYED)
     t.assert_equals(queue_conn:call('tube:take', { 0.001 }), nil)
 
     -- delayed task was taken after timeout
     local taken_task = queue_conn:call('tube:take', { 1 })
-    t.assert_equals(task[helper.index.data], 'simple data')
+    t.assert_equals(taken_task[helper.index.data], 'simple data')
+
+    peek_task = queue_conn:call('tube:peek', {
+        task[helper.index.task_id]
+    })
+    t.assert_equals(peek_task[helper.index.status], helper.state.TAKEN)
 
     -- retake task before ttr
     t.assert_equals(queue_conn:call('tube:take', { 0.01 }), nil)
 
+    fiber.sleep(0.09)
+    peek_task = queue_conn:call('tube:peek', {
+        task[helper.index.task_id]
+    })
+    t.assert_equals(peek_task[helper.index.status], helper.state.READY)
+
     -- retake task after ttr
     t.assert_equals(queue_conn:call('tube:take', { 0.1 })[helper.index.data], 'simple data')
+
+    peek_task = queue_conn:call('tube:peek', {
+        task[helper.index.task_id]
+    })
+    t.assert_equals(peek_task[helper.index.status], helper.state.TAKEN)
+
 end

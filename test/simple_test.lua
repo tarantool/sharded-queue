@@ -35,13 +35,20 @@ function g.test_put_taken()
     local task_ids = {}
     for _, data in pairs(tasks_data) do
         local task = queue_conn:call('tube:put', { data })
+        local peek_task = queue_conn:call('tube:peek', {
+            task[helper.index.task_id]
+        })
+        t.assert_equals(peek_task[helper.index.status], helper.state.READY)
         table.insert(task_ids, task[helper.index.task_id])
     end
     -- try taken this tasks
     local taken_task_ids = {}
     for i = 1, #task_ids do
         local task = queue_conn:call('tube:take')
-        t.assert_equals(task[helper.index.status], helper.state.TAKEN)
+        local peek_task = queue_conn:call('tube:peek', {
+            task[helper.index.task_id]
+        })
+        t.assert_equals(peek_task[helper.index.status], helper.state.TAKEN)
         table.insert(taken_task_ids, task[helper.index.task_id])
     end
     -- compare
@@ -75,6 +82,10 @@ function g.test_delete()
     local task_ids = {}
     for _, data in pairs(tasks_data) do
         local task = queue_conn:call('tube:put', { data })
+        local peek_task = queue_conn:call('tube:peek', {
+            task[helper.index.task_id]
+        })
+        t.assert_equals(peek_task[helper.index.status], helper.state.READY)
         table.insert(task_ids, task[helper.index.task_id])
     end
 
@@ -91,7 +102,10 @@ function g.test_delete()
     local taken_task_ids = {}
     for i = 1, task_count - deleted_tasks_count do
         local task = queue_conn:call('tube:take')
-        t.assert_equals(task[helper.index.status], helper.state.TAKEN)
+        local peek_task = queue_conn:call('tube:peek', {
+            task[helper.index.task_id]
+        })
+        t.assert_equals(peek_task[helper.index.status], helper.state.TAKEN)
         table.insert(taken_task_ids, task[helper.index.task_id])
     end
     --
