@@ -33,13 +33,6 @@ end
 
 local function init(opts)
     if opts.is_master then
-        --
-        box.schema.user.grant('guest',
-            'read,write',
-            'universe',
-            nil, { if_not_exists = true })
-        --
-
         local space_stat = box.schema.space.create('_stat', {
             format = {
                 { 'tube_name', 'string'   },
