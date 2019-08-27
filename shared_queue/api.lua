@@ -10,12 +10,11 @@ local utils = require('shared_queue.utils')
 
 local tube = require('shared_queue.driver_fifottl')
 
+local pool = require('cluster.pool')
 
 local remote_call = function(method, instance_uri, args)
-    local conn = net_box.connect(instance_uri)
-    local ret = conn:call(method, { args })
-    conn:close()
-    return ret
+    local conn = pool.connect(instance_uri)
+    return conn:call(method, { args })
 end
 
 local shared_tube = {}
