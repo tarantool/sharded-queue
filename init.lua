@@ -22,7 +22,7 @@ local ok, err = cluster.cfg({
         'cluster.roles.vshard-storage',
         'cluster.roles.vshard-router',
         'shared_queue.storage',
-        'shared_queue.api',
+        'shared_queue.api'
     },
 }, {
     log = './dev/output-' .. binary_port .. '/main.log',

@@ -1,26 +1,24 @@
-local helper = require('test.helper')
-local netbox = require('net.box')
-
 local t = require('luatest')
-
 local g = t.group('simple_test')
 
-local queue_conn = nil
----
+local config = require('test.helper.config')
+local utils = require('test.helper.utils')
+
 
 g.before_all = function()
-    queue_conn = netbox.connect('localhost:3301')
+    g.queue_conn = config.cluster:server('queue-router').net_box
 end
 
-g.after_all = function()
-    queue_conn:close()
+local function shape_cmd(tube_name, cmd)
+    return string.format('shared_queue.tube.%s:%s', tube_name, cmd)
 end
-
----
 
 function g.test_put_taken()
     local tube_name = 'put_taken_test'
-    queue_conn:eval('tube = shared_queue.create_tube(...)', { tube_name })
+
+    g.queue_conn:call('shared_queue.create_tube', {
+        tube_name
+    })
 
     -- tasks data for putting
     local task_count = 100
@@ -34,25 +32,28 @@ function g.test_put_taken()
     -- returned tasks 
     local task_ids = {}
     for _, data in pairs(tasks_data) do
-        local task = queue_conn:call('tube:put', { data })
-        local peek_task = queue_conn:call('tube:peek', {
-            task[helper.index.task_id]
-        })
-        t.assert_equals(peek_task[helper.index.status], helper.state.READY)
-        table.insert(task_ids, task[helper.index.task_id])
+        local task = g.queue_conn:call(shape_cmd(tube_name, 'put'), { data } )
+
+        local peek_task = g.queue_conn:call(shape_cmd(tube_name, 'peek'),
+            {
+                task[utils.index.task_id]
+            })
+
+        t.assert_equals(peek_task[utils.index.status], utils.state.READY)
+        table.insert(task_ids, task[utils.index.task_id])
     end
     -- try taken this tasks
     local taken_task_ids = {}
     for i = 1, #task_ids do
-        local task = queue_conn:call('tube:take')
-        local peek_task = queue_conn:call('tube:peek', {
-            task[helper.index.task_id]
+        local task = g.queue_conn:call(shape_cmd(tube_name, 'take'))
+        local peek_task = g.queue_conn:call(shape_cmd(tube_name, 'peek'), {
+            task[utils.index.task_id]
         })
-        t.assert_equals(peek_task[helper.index.status], helper.state.TAKEN)
-        table.insert(taken_task_ids, task[helper.index.task_id])
+        t.assert_equals(peek_task[utils.index.status], utils.state.TAKEN)
+        table.insert(taken_task_ids, task[utils.index.task_id])
     end
     -- compare
-    local stat = queue_conn:call('shared_queue.statistics', { tube_name })
+    local stat = g.queue_conn:call('shared_queue.statistics', { tube_name })
 
     t.assert_equals(stat.tasks.ready, 0)
     t.assert_equals(stat.tasks.taken, task_count)
@@ -60,12 +61,14 @@ function g.test_put_taken()
     t.assert_equals(stat.calls.put, task_count)
     t.assert_equals(stat.calls.take, task_count)
 
-    t.assert_equals(helper.equal_sets(task_ids, taken_task_ids), true)
+    t.assert_equals(utils.equal_sets(task_ids, taken_task_ids), true)
 end
 
 function g.test_delete()
     local tube_name = 'delete_test'
-    queue_conn:eval('tube = shared_queue.create_tube(...)', { tube_name })
+    g.queue_conn:call('shared_queue.create_tube', {
+        tube_name
+    })
 
     -- task data for putting
     local task_count = 20
@@ -81,12 +84,12 @@ function g.test_delete()
     -- returned tasks 
     local task_ids = {}
     for _, data in pairs(tasks_data) do
-        local task = queue_conn:call('tube:put', { data })
-        local peek_task = queue_conn:call('tube:peek', {
-            task[helper.index.task_id]
+        local task = g.queue_conn:call(shape_cmd(tube_name, 'put'), { data })
+        local peek_task = g.queue_conn:call(shape_cmd(tube_name, 'peek'), {
+            task[utils.index.task_id]
         })
-        t.assert_equals(peek_task[helper.index.status], helper.state.READY)
-        table.insert(task_ids, task[helper.index.task_id])
+        t.assert_equals(peek_task[utils.index.status], utils.state.READY)
+        table.insert(task_ids, task[utils.index.task_id])
     end
 
     -- delete few tasks
@@ -95,18 +98,18 @@ function g.test_delete()
 
     for i = 1, deleted_tasks_count do
         table.insert(deleted_tasks,
-            queue_conn:call('tube:delete', { task_ids[i] })[helper.index.task_id])
+            g.queue_conn:call(shape_cmd(tube_name, 'delete'), { task_ids[i] })[utils.index.task_id])
     end
 
     -- taken tasks
     local taken_task_ids = {}
     for i = 1, task_count - deleted_tasks_count do
-        local task = queue_conn:call('tube:take')
-        local peek_task = queue_conn:call('tube:peek', {
-            task[helper.index.task_id]
+        local task = g.queue_conn:call(shape_cmd(tube_name, 'take'))
+        local peek_task = g.queue_conn:call(shape_cmd(tube_name, 'peek'), {
+            task[utils.index.task_id]
         })
-        t.assert_equals(peek_task[helper.index.status], helper.state.TAKEN)
-        table.insert(taken_task_ids, task[helper.index.task_id])
+        t.assert_equals(peek_task[utils.index.status], utils.state.TAKEN)
+        table.insert(taken_task_ids, task[utils.index.task_id])
     end
     --
     local excepted_task_ids = {}
@@ -116,7 +119,7 @@ function g.test_delete()
 
     -- compare
 
-    local stat = queue_conn:call('shared_queue.statistics', { tube_name })
+    local stat = g.queue_conn:call('shared_queue.statistics', { tube_name })
 
     t.assert_equals(stat.tasks.ready, 0)
     t.assert_equals(stat.tasks.taken, task_count - deleted_tasks_count)
@@ -124,12 +127,14 @@ function g.test_delete()
     t.assert_equals(stat.calls.put, task_count)
     t.assert_equals(stat.calls.delete, deleted_tasks_count)
 
-    t.assert_equals(helper.equal_sets(excepted_task_ids, taken_task_ids), true)
+    t.assert_equals(utils.equal_sets(excepted_task_ids, taken_task_ids), true)
 end
 
 function g.test_release()
     local tube_name = 'release_test'
-    queue_conn:eval('tube = shared_queue.create_tube(...)', { tube_name })
+        g.queue_conn:call('shared_queue.create_tube', {
+        tube_name
+    })
 
     local task_count = 10
     local tasks_data = {}
@@ -144,9 +149,9 @@ function g.test_release()
     -- returned tasks 
     local task_ids = {}
     for _, data in pairs(tasks_data) do
-        local task = queue_conn:call('tube:put', { data })
-        t.assert_equals(task[helper.index.status], helper.state.READY)
-        table.insert(task_ids, task[helper.index.task_id])
+        local task = g.queue_conn:call(shape_cmd(tube_name, 'put'), { data })
+        t.assert_equals(task[utils.index.status], utils.state.READY)
+        table.insert(task_ids, task[utils.index.task_id])
     end
 
     -- take few tasks
@@ -154,26 +159,26 @@ function g.test_release()
     local taken_task_ids = {}
 
     for i = 1, taken_task_count do
-        local task = queue_conn:call('tube:take')
-        t.assert_equals(task[helper.index.status], helper.state.TAKEN)
-        table.insert(taken_task_ids, task[helper.index.task_id])
+        local task = g.queue_conn:call(shape_cmd(tube_name, 'take'))
+        t.assert_equals(task[utils.index.status], utils.state.TAKEN)
+        table.insert(taken_task_ids, task[utils.index.task_id])
     end
 
-    t.assert_equals(helper.subset_of(taken_task_ids, task_ids), true)
+    t.assert_equals(utils.subset_of(taken_task_ids, task_ids), true)
 
     for _, task_id in pairs(taken_task_ids) do
-        local task = queue_conn:call('tube:release', { task_id })
-        t.assert_equals(task[helper.index.status], helper.state.READY)
+        local task = g.queue_conn:call(shape_cmd(tube_name, 'release'), { task_id })
+        t.assert_equals(task[utils.index.status], utils.state.READY)
     end
 
     local result_task_id = {}
 
     for i = 1, task_count do
         table.insert(result_task_id,
-            queue_conn:call('tube:take')[helper.index.task_id])
+            g.queue_conn:call(shape_cmd(tube_name, 'take'))[utils.index.task_id])
     end
 
-    local stat = queue_conn:call('shared_queue.statistics', { tube_name })
+    local stat = g.queue_conn:call('shared_queue.statistics', { tube_name })
 
     t.assert_equals(stat.tasks.ready, 0)
     t.assert_equals(stat.tasks.taken, task_count)
@@ -182,12 +187,14 @@ function g.test_release()
     t.assert_equals(stat.calls.release, taken_task_count)
     t.assert_equals(stat.calls.take, task_count + taken_task_count)
 
-    t.assert_equals(helper.equal_sets(task_ids, result_task_id), true)
+    t.assert_equals(utils.equal_sets(task_ids, result_task_id), true)
 end
 
 function g.test_bury_kick()
     local tube_name = 'bury_kick_test'
-    queue_conn:eval('tube = shared_queue.create_tube(...)', { tube_name })
+    g.queue_conn:call('shared_queue.create_tube', {
+        tube_name
+    })
 
     local cur_stat = nil
 
@@ -196,25 +203,25 @@ function g.test_bury_kick()
     -- returned tasks 
     local task_ids = {}
     for i = 1, task_count do
-        local task = queue_conn:call('tube:put', { i })
-        table.insert(task_ids, task[helper.index.task_id])
+        local task = g.queue_conn:call(shape_cmd(tube_name, 'put'), { i })
+        table.insert(task_ids, task[utils.index.task_id])
     end
 
     -- bury few task
     local bury_task_count = 5
     for i = 1, bury_task_count do
-        local task = queue_conn:call('tube:bury', { task_ids[i] })
-        t.assert_equals(task[helper.index.status], helper.state.BURIED)
+        local task = g.queue_conn:call(shape_cmd(tube_name, 'bury'), { task_ids[i] })
+        t.assert_equals(task[utils.index.status], utils.state.BURIED)
     end
 
-    cur_stat = queue_conn:call('shared_queue.statistics', { tube_name })
+    cur_stat = g.queue_conn:call('shared_queue.statistics', { tube_name })
     t.assert_equals(cur_stat.tasks.buried, bury_task_count)
     t.assert_equals(cur_stat.tasks.ready, task_count - bury_task_count)
 
     -- try unbury few task > bury_task_count
-    t.assert_equals(queue_conn:call('tube:kick', {bury_task_count + 3}), bury_task_count)
+    t.assert_equals(g.queue_conn:call(shape_cmd(tube_name, 'kick'), {bury_task_count + 3}), bury_task_count)
     
-    cur_stat = queue_conn:call('shared_queue.statistics', { tube_name })
+    cur_stat = g.queue_conn:call('shared_queue.statistics', { tube_name })
     t.assert_equals(cur_stat.calls.kick, bury_task_count)
     t.assert_equals(cur_stat.tasks.ready, task_count)
 end

@@ -1,27 +1,24 @@
-local netbox = require('net.box')
-
 local t = require('luatest')
-
 local g = t.group('drop_test')
 
----
+local config = require('test.helper.config')
 
 g.before_all = function()
-    queue_conn = netbox.connect('localhost:3301')
+    g.queue_conn = config.cluster:server('queue-router').net_box
 end
 
-g.after_all = function()
-    queue_conn:close()
+local function shape_cmd(tube_name, cmd)
+    return string.format('shared_queue.tube.%s:%s', tube_name, cmd)
 end
-
-
----
 
 function g.test_drop_empty()
     local tube_name = 'drop_empty_test'
     
-    queue_conn:eval('tube = shared_queue.create_tube(...)', { tube_name })
-    queue_conn:call('tube:drop')
-    cur_stat = queue_conn:call('shared_queue.statistics', { tube_name })
+    g.queue_conn:call('shared_queue.create_tube', {
+        tube_name
+    })
+    g.queue_conn:call(shape_cmd(tube_name, 'drop'))
+
+    cur_stat = g.queue_conn:call('shared_queue.statistics', { tube_name })
     t.assert_equals(cur_stat, nil)
 end

@@ -301,14 +301,8 @@ end
 
 local function init(opts)
     if opts.is_master then
-        box.schema.user.grant('guest',
-            'read,write,execute',
-            'universe',
-            nil, { if_not_exists = true }
-        )
+        rawset(_G, 'shared_queue', shared_queue)
     end
-
-    rawset(_G, 'shared_queue', shared_queue)
 end
 
 return {

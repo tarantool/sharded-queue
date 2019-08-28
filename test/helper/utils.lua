@@ -1,6 +1,6 @@
-local helper = {}
+local utils = {}
 
-helper.state = {
+utils.state = {
     READY   = 'r',
     TAKEN   = 't',
     DONE    = '-',
@@ -8,7 +8,7 @@ helper.state = {
     DELAYED = '~',
 }
 
-helper.index = {
+utils.index = {
     task_id    = 1,
     bucket_id  = 2,
     status     = 3,
@@ -21,18 +21,18 @@ helper.index = {
     index      = 10
 }
 
-function helper.sec(tm)
+function utils.sec(tm)
     if tm == nil then
         return
     end
     return tm / 1e6
 end
 
-function helper.cur()
+function utils.cur()
     return 0ULL + fiber.time64()
 end
 
-function helper.nano(tm)
+function utils.nano(tm)
     if tm == nil then
         return
     end
@@ -43,12 +43,12 @@ function sign(val)
     return (val >= 0 and 1) or -1
 end
 
-function helper.round(val, bracket)
+function utils.round(val, bracket)
     bracket = bracket or 1
     return math.floor(val / bracket + sign(val) * 0.5) * bracket
 end
 
-function helper.array_contains(array, value, key)
+function utils.array_contains(array, value, key)
     if not array then
         return false
     end
@@ -63,9 +63,9 @@ function helper.array_contains(array, value, key)
 end
 
 -- a < b
-function helper.subset_of(a, b)
+function utils.subset_of(a, b)
     for _, value in pairs(a) do
-        if not helper.array_contains(b, value) then
+        if not utils.array_contains(b, value) then
             return false
         end
     end
@@ -73,8 +73,8 @@ function helper.subset_of(a, b)
 end
 
 -- a = b
-function helper.equal_sets(a, b)
-    return helper.subset_of(a, b) and helper.subset_of(b, a)
+function utils.equal_sets(a, b)
+    return utils.subset_of(a, b) and utils.subset_of(b, a)
 end
 
-return helper
+return utils
