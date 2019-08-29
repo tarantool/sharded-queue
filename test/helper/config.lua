@@ -23,7 +23,7 @@ config.cluster = cluster_helpers.Cluster:new({
                     advertise_port = 3301,
                     net_box_credentials = {
                         user = 'cluster',
-                        password = 'secret-cluster-cookie'
+                        password = 'sharded-queue-cookie'
                     },
                     env = {
                         ['ALIAS'] = 'queue-router',
@@ -45,7 +45,7 @@ config.cluster = cluster_helpers.Cluster:new({
                     advertise_port = 3302,
                     net_box_credentials = {
                         user = 'cluster',
-                        password = 'secret-cluster-cookie'
+                        password = 'sharded-queue-cookie'
                     },
                     env = {
                         ['ALIAS'] = 'queue-storage-1',
@@ -65,7 +65,7 @@ config.cluster = cluster_helpers.Cluster:new({
                     advertise_port = 3303,
                     net_box_credentials = {
                         user = 'cluster',
-                        password = 'secret-cluster-cookie'
+                        password = 'sharded-queue-cookie'
                     },
                     env = {
                         ['ALIAS'] = 'queue-storage-2',
