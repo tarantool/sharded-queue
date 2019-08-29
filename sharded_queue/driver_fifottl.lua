@@ -1,8 +1,8 @@
 local vshard = require('vshard')
 local fiber = require('fiber')
-local state = require('shared_queue.state')
-local utils = require('shared_queue.utils')
-local time  = require('shared_queue.time')
+local state = require('sharded_queue.state')
+local utils = require('sharded_queue.utils')
+local time  = require('sharded_queue.time')
 local log = require('log')
 
 local index = {
@@ -427,6 +427,7 @@ function method.kick(args)
         if task == nil then
             return i - 1
         end
+        
         if task[index.status] ~= state.BURIED then
             return i - 1
         end

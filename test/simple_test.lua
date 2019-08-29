@@ -10,13 +10,13 @@ g.before_all = function()
 end
 
 local function shape_cmd(tube_name, cmd)
-    return string.format('shared_queue.tube.%s:%s', tube_name, cmd)
+    return string.format('queue.tube.%s:%s', tube_name, cmd)
 end
 
 function g.test_put_taken()
     local tube_name = 'put_taken_test'
 
-    g.queue_conn:call('shared_queue.create_tube', {
+    g.queue_conn:call('queue.create_tube', {
         tube_name
     })
 
@@ -53,7 +53,7 @@ function g.test_put_taken()
         table.insert(taken_task_ids, task[utils.index.task_id])
     end
     -- compare
-    local stat = g.queue_conn:call('shared_queue.statistics', { tube_name })
+    local stat = g.queue_conn:call('queue.statistics', { tube_name })
 
     t.assert_equals(stat.tasks.ready, 0)
     t.assert_equals(stat.tasks.taken, task_count)
@@ -66,7 +66,7 @@ end
 
 function g.test_delete()
     local tube_name = 'delete_test'
-    g.queue_conn:call('shared_queue.create_tube', {
+    g.queue_conn:call('queue.create_tube', {
         tube_name
     })
 
@@ -119,7 +119,7 @@ function g.test_delete()
 
     -- compare
 
-    local stat = g.queue_conn:call('shared_queue.statistics', { tube_name })
+    local stat = g.queue_conn:call('queue.statistics', { tube_name })
 
     t.assert_equals(stat.tasks.ready, 0)
     t.assert_equals(stat.tasks.taken, task_count - deleted_tasks_count)
@@ -132,7 +132,7 @@ end
 
 function g.test_release()
     local tube_name = 'release_test'
-        g.queue_conn:call('shared_queue.create_tube', {
+        g.queue_conn:call('queue.create_tube', {
         tube_name
     })
 
@@ -178,7 +178,7 @@ function g.test_release()
             g.queue_conn:call(shape_cmd(tube_name, 'take'))[utils.index.task_id])
     end
 
-    local stat = g.queue_conn:call('shared_queue.statistics', { tube_name })
+    local stat = g.queue_conn:call('queue.statistics', { tube_name })
 
     t.assert_equals(stat.tasks.ready, 0)
     t.assert_equals(stat.tasks.taken, task_count)
@@ -192,7 +192,7 @@ end
 
 function g.test_bury_kick()
     local tube_name = 'bury_kick_test'
-    g.queue_conn:call('shared_queue.create_tube', {
+    g.queue_conn:call('queue.create_tube', {
         tube_name
     })
 
@@ -214,14 +214,14 @@ function g.test_bury_kick()
         t.assert_equals(task[utils.index.status], utils.state.BURIED)
     end
 
-    cur_stat = g.queue_conn:call('shared_queue.statistics', { tube_name })
+    cur_stat = g.queue_conn:call('queue.statistics', { tube_name })
     t.assert_equals(cur_stat.tasks.buried, bury_task_count)
     t.assert_equals(cur_stat.tasks.ready, task_count - bury_task_count)
 
     -- try unbury few task > bury_task_count
     t.assert_equals(g.queue_conn:call(shape_cmd(tube_name, 'kick'), {bury_task_count + 3}), bury_task_count)
     
-    cur_stat = g.queue_conn:call('shared_queue.statistics', { tube_name })
+    cur_stat = g.queue_conn:call('queue.statistics', { tube_name })
     t.assert_equals(cur_stat.calls.kick, bury_task_count)
     t.assert_equals(cur_stat.tasks.ready, task_count)
 end

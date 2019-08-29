@@ -10,7 +10,7 @@ g.before_all = function()
 end
 
 local function shape_cmd(tube_name, cmd)
-    return string.format('shared_queue.tube.%s:%s', tube_name, cmd)
+    return string.format('queue.tube.%s:%s', tube_name, cmd)
 end
 
 local function task_take(tube_name, timeout, channel)
@@ -31,7 +31,7 @@ function g.test_try_waiting()
     -- CHECK uptime and value - nil
 
     local tube_name = 'try_waiting_test'
-    g.queue_conn:call('shared_queue.create_tube', {
+    g.queue_conn:call('queue.create_tube', {
         tube_name
     })
 
@@ -59,7 +59,7 @@ function g.test_wait_put_taking()
     -- CHEK what was taken successfully
 
     local tube_name = 'wait_put_taking_test'
-    g.queue_conn:call('shared_queue.create_tube', {
+    g.queue_conn:call('queue.create_tube', {
         tube_name
     })
 

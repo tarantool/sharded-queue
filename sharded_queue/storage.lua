@@ -2,8 +2,8 @@ local cluster = require('cluster')
 local checks = require('checks')
 local log = require('log')
 
-local utils = require('shared_queue.utils')
-local queue_driver = require('shared_queue.driver_fifottl')
+local utils = require('sharded_queue.utils')
+local queue_driver = require('sharded_queue.driver_fifottl')
 
 local function apply_config(cfg, opts)
     if opts.is_master then
@@ -63,6 +63,7 @@ local function init(opts)
         for name, func in pairs(queue_driver.method) do            
             local global_name = 'tube_' .. name
             rawset(_G, global_name, func)    
+
             box.schema.func.create(global_name)
             box.schema.user.grant('guest', 'execute', 'function', global_name)    
         end

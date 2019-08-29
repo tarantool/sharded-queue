@@ -10,12 +10,12 @@ g.before_all = function()
 end
 
 local function shape_cmd(tube_name, cmd)
-    return string.format('shared_queue.tube.%s:%s', tube_name, cmd)
+    return string.format('queue.tube.%s:%s', tube_name, cmd)
 end
 
 function g.test_touch_task()
     local tube_name = 'touch_task_test'
-    g.queue_conn:call('shared_queue.create_tube', {
+    g.queue_conn:call('queue.create_tube', {
         tube_name
     })
 
@@ -48,7 +48,7 @@ end
 
 function g.test_delayed_tasks()
     local tube_name = 'delayed_tasks_test'
-    g.queue_conn:call('shared_queue.create_tube', {
+    g.queue_conn:call('queue.create_tube', {
         tube_name
     })
     -- task delayed for 0.1 sec 

@@ -14,7 +14,7 @@ config.cluster = cluster_helpers.Cluster:new({
         {
             uuid = 'aaaaaaaa-0000-4000-b000-000000000000',
             roles = {
-                'shared_queue.api'
+                'sharded_queue.api'
             },
             servers = {
                 {
@@ -36,7 +36,7 @@ config.cluster = cluster_helpers.Cluster:new({
         {   
             uuid = 'bbbbbbbb-0000-4000-b000-000000000000',
             roles = {
-                'shared_queue.storage'
+                'sharded_queue.storage'
             },
             servers = {
                 {
@@ -57,7 +57,7 @@ config.cluster = cluster_helpers.Cluster:new({
         },
         {
             uuid = 'cccccccc-0000-4000-b000-000000000000',
-            roles = {'shared_queue.storage'},
+            roles = {'sharded_queue.storage'},
             servers = {
                 {
                     instance_uuid = 'cccccccc-cccc-4000-b000-000000000001',

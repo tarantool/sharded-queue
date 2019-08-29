@@ -4,11 +4,11 @@ local vshard = require('vshard')
 local fiber = require('fiber')
 local log = require('log')
 
-local time = require('shared_queue.time')
-local state = require('shared_queue.state')
-local utils = require('shared_queue.utils')
+local time = require('sharded_queue.time')
+local state = require('sharded_queue.state')
+local utils = require('sharded_queue.utils')
 
-local tube = require('shared_queue.driver_fifottl')
+local tube = require('sharded_queue.driver_fifottl')
 
 local pool = require('cluster.pool')
 
@@ -17,9 +17,9 @@ local remote_call = function(method, instance_uri, args)
     return conn:call(method, { args })
 end
 
-local shared_tube = {}
+local sharded_tube = {}
 
-function shared_tube.put(self, data, options)
+function sharded_tube.put(self, data, options)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id = math.random(bucket_count)
     
@@ -50,13 +50,13 @@ function take_task(tube_name, storages)
     end
 end
 
-function shared_tube.take(self, timeout)
+function sharded_tube.take(self, timeout)
     -- take task from tube --
 
     local storages = {}
     for _, replica in pairs(cluster.admin.get_replicasets()) do
         log.info(replica.master.uri)
-        if utils.array_contains(replica.roles, 'shared_queue.storage') then
+        if utils.array_contains(replica.roles, 'sharded_queue.storage') then
             table.insert(storages, replica.master.uri)
         end
     end 
@@ -96,7 +96,7 @@ function shared_tube.take(self, timeout)
     end
 end
 
-function shared_tube.delete(self, task_id)
+function sharded_tube.delete(self, task_id)
     -- task delete from tube --
 
     local bucket_count = vshard.router.bucket_count()
@@ -112,7 +112,7 @@ function shared_tube.delete(self, task_id)
     return task
 end
 
-function shared_tube.release(self, task_id)
+function sharded_tube.release(self, task_id)
     -- task release from tube --
 
     local bucket_count = vshard.router.bucket_count()
@@ -128,7 +128,7 @@ function shared_tube.release(self, task_id)
     return task
 end
 
-function shared_tube.touch(self, task_id, delta)
+function sharded_tube.touch(self, task_id, delta)
     if delta == nil or delta <= 0 then
         return
     end
@@ -152,7 +152,7 @@ function shared_tube.touch(self, task_id, delta)
     return task
 end
 
-function shared_tube.ask(self, task_id)
+function sharded_tube.ask(self, task_id)
     -- task delete from tube --
 
     local bucket_count = vshard.router.bucket_count()
@@ -168,7 +168,7 @@ function shared_tube.ask(self, task_id)
     return task
 end
 
-function shared_tube.bury(self, task_id)
+function sharded_tube.bury(self, task_id)
     -- task bury --
 
     local bucket_count = vshard.router.bucket_count()
@@ -184,12 +184,12 @@ function shared_tube.bury(self, task_id)
     return task
 end
 
-function shared_tube.kick(self, count)
+function sharded_tube.kick(self, count)
     -- try kick few tasks --
 
     local storages = {}
     for _, replica in pairs(cluster.admin.get_replicasets()) do
-        if utils.array_contains(replica.roles, 'shared_queue.storage') then
+        if utils.array_contains(replica.roles, 'sharded_queue.storage') then
             table.insert(storages, replica.master.uri)
         end
     end
@@ -217,7 +217,7 @@ function shared_tube.kick(self, count)
     return kicked_count
 end
 
-function shared_tube.peek(self, task_id)
+function sharded_tube.peek(self, task_id)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
@@ -231,27 +231,27 @@ function shared_tube.peek(self, task_id)
     return task
 end
 
-function shared_tube.drop(self)
+local sharded_queue = {
+    tube = {}
+}
+
+function sharded_tube.drop(self)
     local tubes = cluster.config_get_deepcopy('tubes') or {}
     tubes[self.tube_name] = nil
-    shared_queue.tube[self.tube_name] = nil
+    sharded_queue.tube[self.tube_name] = nil
 
     cluster.config_patch_clusterwide({ tubes = tubes })
     self = nil
 end
 
-local shared_queue = {
-    tube = {}
-}
-
-function shared_queue.statistics(tube_name)
+function sharded_queue.statistics(tube_name)
     if not tube_name then
         return
     end
     -- collect stats from all storages
     local stats_collection = {}
     for _, replica in pairs(cluster.admin.get_replicasets()) do
-        if utils.array_contains(replica.roles, 'shared_queue.storage') then
+        if utils.array_contains(replica.roles, 'sharded_queue.storage') then
             --
             local ok, ret = pcall(remote_call, 'tube_statistic',
                 replica.master.uri,
@@ -280,7 +280,7 @@ function shared_queue.statistics(tube_name)
     return stat
 end
 
-function shared_queue.create_tube(tube_name, options)
+function sharded_queue.create_tube(tube_name, options)
     local tubes = cluster.config_get_deepcopy('tubes') or {}
     if tubes[tube_name] ~= nil then
         return nil
@@ -292,16 +292,16 @@ function shared_queue.create_tube(tube_name, options)
     local self = setmetatable({
         tube_name = tube_name,
     }, {
-        __index = shared_tube
+        __index = sharded_tube
     })
-    shared_queue.tube[tube_name] = self
+    sharded_queue.tube[tube_name] = self
 
     return self
 end
 
 local function init(opts)
     if opts.is_master then
-        rawset(_G, 'shared_queue', shared_queue)
+        rawset(_G, 'queue', sharded_queue)
     end
 end
 
