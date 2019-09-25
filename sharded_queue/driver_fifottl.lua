@@ -187,7 +187,8 @@ local function tube_create(args)
         type = 'tree',
         parts = {
             index.status,   'string',
-            index.priority, 'unsigned'
+            index.priority, 'unsigned',
+            index.created,  'unsigned'
         },
         unique = false,
         if_not_exists = if_not_exists
