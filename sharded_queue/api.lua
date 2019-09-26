@@ -231,18 +231,16 @@ function sharded_tube.peek(self, task_id)
     return task
 end
 
+function sharded_tube.drop(self)
+    local tubes = cluster.config_get_deepcopy('tubes') or {}
+
+    tubes[self.tube_name] = nil
+    cluster.config_patch_clusterwide({ tubes = tubes })
+end
+
 local sharded_queue = {
     tube = {}
 }
-
-function sharded_tube.drop(self)
-    local tubes = cluster.config_get_deepcopy('tubes') or {}
-    tubes[self.tube_name] = nil
-    sharded_queue.tube[self.tube_name] = nil
-
-    cluster.config_patch_clusterwide({ tubes = tubes })
-    self = nil
-end
 
 function sharded_queue.statistics(tube_name)
     if not tube_name then
@@ -282,21 +280,16 @@ end
 
 function sharded_queue.create_tube(tube_name, options)
     local tubes = cluster.config_get_deepcopy('tubes') or {}
+
     if tubes[tube_name] ~= nil then
+        -- already exist --
         return nil
     end
 
     tubes[tube_name] = options or {}
     cluster.config_patch_clusterwide({ tubes = tubes })
 
-    local self = setmetatable({
-        tube_name = tube_name,
-    }, {
-        __index = sharded_tube
-    })
-    sharded_queue.tube[tube_name] = self
-
-    return self
+    return sharded_queue.tube[tube_name]
 end
 
 local function init(opts)
@@ -305,8 +298,34 @@ local function init(opts)
     end
 end
 
+local function apply_config(cfg, opts)
+    if opts.is_master then
+        local cfg_tubes = cfg.tubes or {}
+
+        -- try init tubes --
+        for tube_name, _ in pairs(cfg_tubes) do
+            if sharded_queue.tube[tube_name] == nil then
+                local self = setmetatable({
+                    tube_name = tube_name,
+                }, {
+                    __index = sharded_tube
+                })
+                sharded_queue.tube[tube_name] = self
+            end
+        end
+
+        -- try drop tubes --
+        for tube_name, _ in pairs(sharded_queue.tube) do
+            if cfg_tubes[tube_name] == nil then
+                setmetatable(sharded_queue.tube[tube_name], nil)
+            end
+        end
+    end
+end
+
 return {
     init = init,
+    apply_config = apply_config,
     dependencies = {
         'cluster.roles.vshard-router',
     }
