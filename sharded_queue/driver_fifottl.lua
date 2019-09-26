@@ -1,9 +1,8 @@
-local vshard = require('vshard')
 local fiber = require('fiber')
 local state = require('sharded_queue.state')
 local utils = require('sharded_queue.utils')
 local time  = require('sharded_queue.time')
-local log = require('log')
+local log = require('log') -- luacheck: ignore
 
 local index = {
     task_id    = 1,
@@ -29,7 +28,7 @@ local stat_pos = {
         put  = 6,
         delete = 7,
         touch  = 8,
-        ask    = 9,
+        ack    = 9,
         release = 10
     },
     options = {
@@ -52,15 +51,14 @@ local fibers_info = {}
 -- FIBERS METHODS --
 local function fiber_iteration(tube_name, processed)
     local cur  = time.cur()
-    local task = nil
     local estimated = time.MAX_TIMEOUT
 
     -- delayed tasks
 
-    task = box.space[tube_name].index.watch:min { state.DELAYED }
+    local task = box.space[tube_name].index.watch:min { state.DELAYED }
     if task ~= nil and task[index.status] == state.DELAYED then
         if cur >= task[index.next_event] then
-            task = box.space[tube_name]:update(task[index.task_id], {
+            box.space[tube_name]:update(task[index.task_id], {
                 { '=', index.status,     state.READY },
                 { '=', index.next_event, task[index.created] + task[index.ttl] }
             })
@@ -77,8 +75,7 @@ local function fiber_iteration(tube_name, processed)
         task = box.space[tube_name].index.watch:min { s }
         if task ~= nil and task[index.status] == s then
             if cur >= task[index.next_event] then
-                task = box.space[tube_name]:delete(task[index.task_id]):transform(index.status, 1, state.DONE)
-                -- box.sequence[tube_name]:next()
+                box.space[tube_name]:delete(task[index.task_id]):transform(index.status, 1, state.DONE)
                 update_stat(tube_name, 'status', 'done')
                 estimated = 0
                 processed = processed + 1
@@ -94,7 +91,7 @@ local function fiber_iteration(tube_name, processed)
     task = box.space[tube_name].index.watch:min { state.TAKEN }
     if task and task[index.status] == state.TAKEN then
         if cur >= task[index.next_event] then
-            task = box.space[tube_name]:update(task[index.task_id], {
+            box.space[tube_name]:update(task[index.task_id], {
                 { '=', index.status,     state.READY },
                 { '=', index.next_event, task[index.created] + task[index.ttl] }
             })
@@ -108,9 +105,9 @@ local function fiber_iteration(tube_name, processed)
 
     if estimated > 0 or processed > 1000 then
         estimated = estimated > 0 and estimated or 0
-        
+
         local cond = fiber.cond()
-        
+
         fibers_info[tube_name] = {
             cond = cond
         }
@@ -222,15 +219,15 @@ local function tube_create(args)
         }
     end
     -- run fiber for tracking event
-    local tube_fiber = fiber.create(fiber_common, args.name)
+    fiber.create(fiber_common, args.name)
 end
 
 local function tubes()
-    local tubes = {}
+    local result = {}
     for _, tuple in box.space._stat:pairs() do
-        table.insert(tubes, tuple[1])
+        table.insert(result, tuple[1])
     end
-    return tubes
+    return result
 end
 
 local function tube_drop(tube_name)
@@ -272,8 +269,8 @@ function method.statistic(args)
 
     stat.tasks.done = stored_stat[stat_pos.status.done]
     -- collect calls count
-    for call_name, index in pairs(stat_pos.call) do
-        stat.calls[call_name] = stored_stat[index]
+    for call_name, call_index in pairs(stat_pos.call) do
+        stat.calls[call_name] = stored_stat[call_index]
     end
 
     return stat
@@ -281,7 +278,7 @@ end
 
 
 function method.put(args)
-    local status = state.READY
+
     local delay = args.delay or 0
     -- setup params --
     local stat = box.space._stat:get(args.tube_name)
@@ -298,12 +295,12 @@ function method.put(args)
         args.bucket_count,
         idx)
 
+    local status = state.READY
     if delay > 0 then
         status = state.DELAYED
         ttl = ttl + delay
         next_event = time.event(delay)
     else
-        status = state.READY
         next_event = time.event(ttl)
     end
 
@@ -342,7 +339,7 @@ function method.take(args)
 
     local next_event = time.cur() + task[index.ttr]
     local dead_event = task[index.created] + task[index.ttl]
-    
+
     if next_event > dead_event then
         next_event = dead_event
     end
@@ -388,7 +385,7 @@ function method.touch(args)
     return task
 end
 
-function method.ask(args)
+function method.ack(args)
     box.begin()
     local task = box.space[args.tube_name]:get(args.task_id)
     box.space[args.tube_name]:delete(args.task_id)
@@ -397,7 +394,7 @@ function method.ask(args)
         task = task:transform(index.status, 1, state.DONE)
     end
 
-    update_stat(args.tube_name, 'call', 'ask')
+    update_stat(args.tube_name, 'call', 'ack')
     update_stat(args.tube_name, 'status', 'done')
     fibers_info[args.tube_name].cond:signal()
     return task
@@ -409,7 +406,7 @@ end
 
 function method.release(args)
     local task = box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.READY} })
-    
+
     update_stat(args.tube_name, 'call', 'release')
     fibers_info[args.tube_name].cond:signal()
     return task
@@ -428,15 +425,15 @@ function method.kick(args)
         if task == nil then
             return i - 1
         end
-        
+
         if task[index.status] ~= state.BURIED then
             return i - 1
         end
 
-        task = box.space[args.tube_name]:update(task[index.task_id], { {'=', index.status, state.READY} })
+        box.space[args.tube_name]:update(task[index.task_id], { {'=', index.status, state.READY} })
         update_stat(args.tube_name, 'call', 'kick')
     end
-    return count
+    return args.count
 end
 
 return {

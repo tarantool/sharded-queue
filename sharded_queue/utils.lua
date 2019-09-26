@@ -18,7 +18,7 @@ function utils.array_contains(array, value, key)
     if not array then
         return false
     end
-    local key = key or function(x) return x end
+    key = key or function(x) return x end
     for _, v in ipairs(array) do
         if key(v) == value then
             return true

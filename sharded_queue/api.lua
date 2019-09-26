@@ -1,14 +1,10 @@
 local cluster = require('cluster')
-local net_box = require('net.box')
 local vshard = require('vshard')
 local fiber = require('fiber')
 local log = require('log')
 
 local time = require('sharded_queue.time')
-local state = require('sharded_queue.state')
 local utils = require('sharded_queue.utils')
-
-local tube = require('sharded_queue.driver_fifottl')
 
 local pool = require('cluster.pool')
 
@@ -22,9 +18,9 @@ local sharded_tube = {}
 function sharded_tube.put(self, data, options)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id = math.random(bucket_count)
-    
-    local options = options or {}
-    
+
+    options = options or {}
+
     options.data = data
     options.tube_name = self.tube_name
     options.bucket_id = bucket_id
@@ -35,11 +31,11 @@ function sharded_tube.put(self, data, options)
     return task
 end
 
--- function for try get task from instance --   
-function take_task(tube_name, storages)
+-- function for try get task from instance --
+local function take_task(tube_name, storages)
     for _, instance_uri in pairs(storages) do
         -- try take task from all instance
-        local ok, ret = pcall(remote_call, 'tube_take',
+        local _, ret = pcall(remote_call, 'tube_take',
             instance_uri,
             {
                 tube_name = tube_name
@@ -55,15 +51,14 @@ function sharded_tube.take(self, timeout)
 
     local storages = {}
     for _, replica in pairs(cluster.admin.get_replicasets()) do
-        log.info(replica.master.uri)
         if utils.array_contains(replica.roles, 'sharded_queue.storage') then
             table.insert(storages, replica.master.uri)
         end
-    end 
+    end
     utils.array_shuffle(storages)
 
     local task = take_task(self.tube_name, storages)
-    
+
     if task ~= nil then
         return task
     end
@@ -73,8 +68,8 @@ function sharded_tube.take(self, timeout)
     local frequency = 1000
     local wait_part = 0.01 -- maximum waiting time in second
 
-    local calc_part = time.sec(timeout / frequency) 
-    
+    local calc_part = time.sec(timeout / frequency)
+
     if calc_part < wait_part then
         wait_part = tonumber(calc_part)
     end
@@ -121,7 +116,7 @@ function sharded_tube.release(self, task_id)
     local task = vshard.router.call(bucket_id, 'write', 'tube_release', {
         {
             tube_name = self.tube_name,
-            task_id = task_id    
+            task_id = task_id
         }
     })
 
@@ -146,22 +141,22 @@ function sharded_tube.touch(self, task_id, delta)
         {
             tube_name = self.tube_name,
             task_id = task_id,
-            delta = delta    
+            delta = delta
         }
     })
     return task
 end
 
-function sharded_tube.ask(self, task_id)
+function sharded_tube.ack(self, task_id)
     -- task delete from tube --
 
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
-    local task = vshard.router.call(bucket_id, 'write', 'tube_ask', {
+    local task = vshard.router.call(bucket_id, 'write', 'tube_ack', {
         {
             tube_name = self.tube_name,
-            task_id = task_id    
+            task_id = task_id
         }
     })
 
@@ -177,7 +172,7 @@ function sharded_tube.bury(self, task_id)
     local task = vshard.router.call(bucket_id, 'write', 'tube_bury', {
         {
             tube_name = self.tube_name,
-            task_id = task_id    
+            task_id = task_id
         }
     })
 
@@ -206,9 +201,9 @@ function sharded_tube.kick(self, count)
             log.error(k)
             return
         end
-        
+
         kicked_count = kicked_count + k
-        
+
         if kicked_count == count then
             break
         end
@@ -224,7 +219,7 @@ function sharded_tube.peek(self, task_id)
     local task = vshard.router.call(bucket_id, 'write', 'tube_peek', {
         {
             tube_name = self.tube_name,
-            task_id = task_id    
+            task_id = task_id
         }
     })
 

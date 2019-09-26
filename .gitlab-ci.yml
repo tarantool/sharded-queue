@@ -1,0 +1,27 @@
+stages:
+ - build
+
+variables:
+  AWS_S3_ENDPOINT_URL: https://hb.bizmrg.com
+  DOWNLOAD_ENDPOINT: download.tarantool.io/enterprise
+  BUNDLE_VERSION: 1.10.3-100-g8224889
+
+build:
+  stage: build
+  artifacts:
+   name: "$CI_COMMIT_REF_NAME"
+  tags:
+    - docker
+  image: centos:7
+  before_script:
+   - yum -y install epel-release && yum -y update && yum -y install wget git cmake make unzip gcc
+   - wget https://tarantool:${DOWNLOAD_TOKEN}@download.tarantool.io/enterprise/tarantool-enterprise-bundle-${BUNDLE_VERSION}.tar.gz
+   - tar -zxf tarantool-enterprise-bundle-${BUNDLE_VERSION}.tar.gz --strip 1
+   - source env.sh
+   - tarantoolctl rocks install luacheck
+   - tarantoolctl rocks install luatest
+   - export PATH=.rocks/bin:$PATH
+  script:
+   - tarantoolctl rocks make sharded-queue-scm-1.rockspec
+   - luacheck ./sharded_queue
+   - luatest -c -v

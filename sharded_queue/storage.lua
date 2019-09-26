@@ -1,7 +1,3 @@
-local cluster = require('cluster')
-local checks = require('checks')
-local log = require('log')
-
 local utils = require('sharded_queue.utils')
 local queue_driver = require('sharded_queue.driver_fifottl')
 
@@ -11,13 +7,12 @@ local function apply_config(cfg, opts)
         local box_tubes_name = queue_driver.tubes()
 
         -- try create tube --
-        for tube, opts in pairs(cfg_tubes) do
+        for tube, tube_opts in pairs(cfg_tubes) do
             if not utils.array_contains(box_tubes_name, tube) then
                 queue_driver.create({
                     name = tube,
-                    options = opts
+                    options = tube_opts
                 })
-                return true
             end
         end
 
@@ -25,10 +20,10 @@ local function apply_config(cfg, opts)
         for _, tube in pairs(box_tubes_name) do
             if cfg_tubes[tube] == nil then
                 queue_driver.drop(tube)
-                return true
             end
         end
     end
+    return true
 end
 
 local function init(opts)
@@ -44,7 +39,7 @@ local function init(opts)
                 { 'put',       'unsigned' },
                 { 'delete',    'unsigned' },
                 { 'touch',     'unsigned' },
-                { 'ask',       'unsigned' },
+                { 'ack',       'unsigned' },
                 { 'release',   'unsigned' },
                 -- default options ---------
                 { 'ttl',       'unsigned' },
@@ -52,20 +47,20 @@ local function init(opts)
                 { 'priority',  'unsigned' }
             }
         })
-    
+
         space_stat:create_index('primary', {
             type = 'HASH',
             parts = {
                 1, 'string'
             }
         })
-        
-        for name, func in pairs(queue_driver.method) do            
+
+        for name, func in pairs(queue_driver.method) do
             local global_name = 'tube_' .. name
-            rawset(_G, global_name, func)    
+            rawset(_G, global_name, func)
 
             box.schema.func.create(global_name)
-            box.schema.user.grant('guest', 'execute', 'function', global_name)    
+            box.schema.user.grant('guest', 'execute', 'function', global_name)
         end
 
         --

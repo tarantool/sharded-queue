@@ -1,13 +1,15 @@
 local fio = require('fio')
 local t = require('luatest')
 local cluster_helpers = require('cluster.test_helpers')
+require('json').cfg { encode_use_tostring = true }
 
 local config = {}
 
 config.root = fio.dirname(fio.abspath(package.search('init')))
+config.datadir = fio.pathjoin(config.root, 'dev')
 
 config.cluster = cluster_helpers.Cluster:new({
-    datadir = fio.pathjoin(config.root, 'dev'),
+    datadir = config.datadir,
     server_command = fio.pathjoin(config.root, 'init.lua'),
     use_vshard = true,
     replicasets = {
@@ -28,12 +30,13 @@ config.cluster = cluster_helpers.Cluster:new({
                     env = {
                         ['ALIAS'] = 'queue-router',
                         ['BINARY_PORT'] = '3301',
-                        ['HTTP_PORT'] = '8081'
+                        ['HTTP_PORT'] = '8081',
+                        ['HOSTNAME'] = 'localhost'
                     }
                 }
             },
         },
-        {   
+        {
             uuid = 'bbbbbbbb-0000-4000-b000-000000000000',
             roles = {
                 'sharded_queue.storage'
@@ -50,7 +53,8 @@ config.cluster = cluster_helpers.Cluster:new({
                     env = {
                         ['ALIAS'] = 'queue-storage-1',
                         ['BINARY_PORT'] = '3302',
-                        ['HTTP_PORT'] = '8082'
+                        ['HTTP_PORT'] = '8082',
+                        ['HOSTNAME'] = 'localhost'
                     }
                 },
             }
@@ -70,7 +74,8 @@ config.cluster = cluster_helpers.Cluster:new({
                     env = {
                         ['ALIAS'] = 'queue-storage-2',
                         ['BINARY_PORT'] = '3303',
-                        ['HTTP_PORT'] = '8083'
+                        ['HTTP_PORT'] = '8083',
+                        ['HOSTNAME'] = 'localhost'
                     }
                 }
             },
@@ -78,7 +83,10 @@ config.cluster = cluster_helpers.Cluster:new({
     }
 })
 
-t.before_suite(function () config.cluster:start() end)
+t.before_suite(function ()
+    fio.rmtree(config.datadir)
+    fio.mktree(config.datadir)
+    config.cluster:start() end)
 
 t.after_suite(function () config.cluster:stop() end)
 

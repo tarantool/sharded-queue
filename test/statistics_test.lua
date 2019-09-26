@@ -31,7 +31,7 @@ function g.test_statistics()
             g.queue_conn:call(shape_cmd(tube_name, 'put'), {
             i, { delay = 3 , ttl = 3, ttr = 1}
         })[utils.index.task_id])
-        
+
         if i == middle then -- it time to stop and check statistics
             cur_stat = g.queue_conn:call('queue.statistics', { tube_name })
 
@@ -46,7 +46,7 @@ function g.test_statistics()
     t.assert_equals(cur_stat.calls.put, task_count)
 
     fiber.sleep(3.01)
-    
+
     -- after delay
     cur_stat = g.queue_conn:call('queue.statistics', { tube_name })
     t.assert_equals(cur_stat.tasks.delayed, 0)
@@ -69,17 +69,17 @@ function g.test_statistics()
     t.assert_equals(cur_stat.tasks.taken, taken_task_count)
     t.assert_equals(cur_stat.calls.take, taken_task_count)
 
-    -- done few task with ask
+    -- done few task with ack
     local done_task_count = 10
     for i = 1, done_task_count do
-        g.queue_conn:call(shape_cmd(tube_name, 'ask'), { taken_task_pack[i] })
+        g.queue_conn:call(shape_cmd(tube_name, 'ack'), { taken_task_pack[i] })
     end
 
-    -- after ask
+    -- after ack
     cur_stat = g.queue_conn:call('queue.statistics', { tube_name })
     t.assert_equals(cur_stat.tasks.taken, taken_task_count - done_task_count)
     t.assert_equals(cur_stat.tasks.done, done_task_count)
-    t.assert_equals(cur_stat.calls.ask, done_task_count)
+    t.assert_equals(cur_stat.calls.ack, done_task_count)
 
     -- sleep time to run and check stats after ttr
     fiber.sleep(1.01)
