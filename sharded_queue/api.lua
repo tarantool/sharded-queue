@@ -315,6 +315,7 @@ local function apply_config(cfg, opts)
         for tube_name, _ in pairs(sharded_queue.tube) do
             if cfg_tubes[tube_name] == nil then
                 setmetatable(sharded_queue.tube[tube_name], nil)
+                sharded_queue.tube[tube_name] = nil
             end
         end
     end
