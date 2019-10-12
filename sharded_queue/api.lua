@@ -6,10 +6,11 @@ local log = require('log')
 local time = require('sharded_queue.time')
 local utils = require('sharded_queue.utils')
 
-local pool = require('cluster.pool')
+local cluster_pool = require('cluster.pool')
+local cluster_rpc = require('cluster.rpc')
 
 local remote_call = function(method, instance_uri, args)
-    local conn = pool.connect(instance_uri)
+    local conn = cluster_pool.connect(instance_uri)
     return conn:call(method, { args })
 end
 
@@ -33,7 +34,7 @@ end
 
 -- function for try get task from instance --
 local function take_task(tube_name, storages)
-    for _, instance_uri in pairs(storages) do
+    for _, instance_uri in ipairs(storages) do
         -- try take task from all instance
         local _, ret = pcall(remote_call, 'tube_take',
             instance_uri,
@@ -49,12 +50,12 @@ end
 function sharded_tube.take(self, timeout)
     -- take task from tube --
 
-    local storages = {}
-    for _, replica in pairs(cluster.admin.get_replicasets()) do
-        if utils.array_contains(replica.roles, 'sharded_queue.storage') then
-            table.insert(storages, replica.master.uri)
-        end
-    end
+    local storages = cluster_rpc.get_candidates(
+        'sharded_queue.storage',
+        {
+            leader_only = true
+        })
+
     utils.array_shuffle(storages)
 
     local task = take_task(self.tube_name, storages)
@@ -182,15 +183,14 @@ end
 function sharded_tube.kick(self, count)
     -- try kick few tasks --
 
-    local storages = {}
-    for _, replica in pairs(cluster.admin.get_replicasets()) do
-        if utils.array_contains(replica.roles, 'sharded_queue.storage') then
-            table.insert(storages, replica.master.uri)
-        end
-    end
+    local storages = cluster_rpc.get_candidates(
+        'sharded_queue.storage',
+        {
+            leader_only = true
+        })
 
     local kicked_count = 0 -- count kicked task
-    for _, instance_uri in pairs(storages) do
+    for _, instance_uri in ipairs(storages) do
         local ok, k = pcall(remote_call, 'tube_kick',
             instance_uri,
             {
@@ -242,22 +242,24 @@ function sharded_queue.statistics(tube_name)
         return
     end
     -- collect stats from all storages
+    local storages = cluster_rpc.get_candidates(
+        'sharded_queue.storage',
+        {
+            leader_only = true
+        })
+
     local stats_collection = {}
-    for _, replica in pairs(cluster.admin.get_replicasets()) do
-        if utils.array_contains(replica.roles, 'sharded_queue.storage') then
-            --
-            local ok, ret = pcall(remote_call, 'tube_statistic',
-                replica.master.uri,
-                {
-                    tube_name = tube_name
-                })
-            --
-            if not ok or ret == nil then
-                return
-            end
-            --
-            table.insert(stats_collection, ret)
+
+    for _, instance_uri in ipairs(storages) do
+        local ok, ret = pcall(remote_call, 'tube_statistic',
+            instance_uri,
+            {
+                tube_name = tube_name
+            })
+        if not ok or ret == nil then
+            return
         end
+        table.insert(stats_collection, ret)
     end
     -- merge
     local stat = stats_collection[1]
