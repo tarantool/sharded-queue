@@ -45,22 +45,21 @@ local function init(opts)
                 { 'ttl',       'unsigned' },
                 { 'ttr',       'unsigned' },
                 { 'priority',  'unsigned' }
-            }
+            },
+            if_not_exists = true
         })
 
         space_stat:create_index('primary', {
             type = 'HASH',
             parts = {
                 1, 'string'
-            }
+            },
+            if_not_exists = true
         })
-
         for name, func in pairs(queue_driver.method) do
             local global_name = 'tube_' .. name
             rawset(_G, global_name, func)
-
-            box.schema.func.create(global_name)
-            box.schema.user.grant('guest', 'execute', 'function', global_name)
+            box.schema.func.create(global_name, { if_not_exists = true })
         end
 
         --
