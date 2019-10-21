@@ -7,7 +7,7 @@ source  = {
 dependencies = {
     'lua >= 5.1';
     'checks >= 3.0.0',
-    'cluster >= 0.9.2',
+    'cartridge == 1.0.0',
 }
 
 external_dependencies = {

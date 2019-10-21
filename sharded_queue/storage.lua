@@ -70,6 +70,6 @@ return {
     init = init,
     apply_config = apply_config,
     dependencies = {
-        'cluster.roles.vshard-storage',
+        'cartridge.roles.vshard-storage',
     },
 }

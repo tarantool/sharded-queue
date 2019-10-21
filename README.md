@@ -5,7 +5,7 @@ This application is an implementation of a distributed queue compatible with [Ta
 
 ## Running application
 
-The script that starts and configures the cluster is located in `example`
+The script that starts and configures the cartridge is located in `example`
 Run it.
 ```
 ./example/configurate.sh
@@ -27,7 +27,7 @@ type 'help' for interactive help
 tarantool> netbox = require('net.box')
 ---
 ...
-tarantool> queue_conn = netbox.connect('localhost:3301', {user = 'cluster',password = 'secret-cluster-cookie'})
+tarantool> queue_conn = netbox.connect('localhost:3301', {user = 'admin',password = 'sharded-queue-cookie'})
 ---
 ...
 tarantool> queue_conn:call('queue.create_tube', { 'test_tube' })   

@@ -20,7 +20,7 @@ ALIAS='s2-replica' BINARY_PORT=3305 HTTP_PORT=8085 CONSOLE_SOCk=/tmp/5.sock tara
 sleep 2.5
 echo "All instances started!"
 
-# assemble cluster
+# assemble cartridge
 
 curl -w "\n" -X POST http://127.0.0.1:8081/admin/api --fail -d@- <<'QUERY'
 {"query":

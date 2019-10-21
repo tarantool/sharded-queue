@@ -1,4 +1,4 @@
-local cluster = require('cluster')
+local cartridge = require('cartridge')
 local vshard = require('vshard')
 local fiber = require('fiber')
 local log = require('log')
@@ -6,11 +6,11 @@ local log = require('log')
 local time = require('sharded_queue.time')
 local utils = require('sharded_queue.utils')
 
-local cluster_pool = require('cluster.pool')
-local cluster_rpc = require('cluster.rpc')
+local cartridge_pool = require('cartridge.pool')
+local cartridge_rpc = require('cartridge.rpc')
 
 local remote_call = function(method, instance_uri, args)
-    local conn = cluster_pool.connect(instance_uri)
+    local conn = cartridge_pool.connect(instance_uri)
     return conn:call(method, { args })
 end
 
@@ -50,7 +50,7 @@ end
 function sharded_tube.take(self, timeout)
     -- take task from tube --
 
-    local storages = cluster_rpc.get_candidates(
+    local storages = cartridge_rpc.get_candidates(
         'sharded_queue.storage',
         {
             leader_only = true
@@ -183,7 +183,7 @@ end
 function sharded_tube.kick(self, count)
     -- try kick few tasks --
 
-    local storages = cluster_rpc.get_candidates(
+    local storages = cartridge_rpc.get_candidates(
         'sharded_queue.storage',
         {
             leader_only = true
@@ -227,10 +227,10 @@ function sharded_tube.peek(self, task_id)
 end
 
 function sharded_tube.drop(self)
-    local tubes = cluster.config_get_deepcopy('tubes') or {}
+    local tubes = cartridge.config_get_deepcopy('tubes') or {}
 
     tubes[self.tube_name] = nil
-    cluster.config_patch_clusterwide({ tubes = tubes })
+    cartridge.config_patch_clusterwide({ tubes = tubes })
 end
 
 local sharded_queue = {
@@ -242,7 +242,7 @@ function sharded_queue.statistics(tube_name)
         return
     end
     -- collect stats from all storages
-    local storages = cluster_rpc.get_candidates(
+    local storages = cartridge_rpc.get_candidates(
         'sharded_queue.storage',
         {
             leader_only = true
@@ -276,7 +276,7 @@ function sharded_queue.statistics(tube_name)
 end
 
 function sharded_queue.create_tube(tube_name, options)
-    local tubes = cluster.config_get_deepcopy('tubes') or {}
+    local tubes = cartridge.config_get_deepcopy('tubes') or {}
 
     if tubes[tube_name] ~= nil then
         -- already exist --
@@ -284,7 +284,7 @@ function sharded_queue.create_tube(tube_name, options)
     end
 
     tubes[tube_name] = options or {}
-    cluster.config_patch_clusterwide({ tubes = tubes })
+    cartridge.config_patch_clusterwide({ tubes = tubes })
 
     return sharded_queue.tube[tube_name]
 end
@@ -325,6 +325,6 @@ return {
     init = init,
     apply_config = apply_config,
     dependencies = {
-        'cluster.roles.vshard-router',
+        'cartridge.roles.vshard-router',
     }
 }
