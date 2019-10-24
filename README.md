@@ -5,6 +5,12 @@ This application is an implementation of a distributed queue compatible with [Ta
 
 ## Running application
 
+Install dependencies:
+
+```
+tarantoolctl rocks make
+```
+
 The script that starts and configures the cartridge is located in `example`
 Run it.
 ```
@@ -50,5 +56,6 @@ tarantool> queue_conn:call('queue.tube.test_tube:take')
 Say:
 
 ```
-luatest
+tarantoolctl rocks install luatest
+.rocks/bin/luatest -v
 ```
