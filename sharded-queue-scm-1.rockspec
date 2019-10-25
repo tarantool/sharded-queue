@@ -17,5 +17,16 @@ external_dependencies = {
 }
 
 build = {
-    type = 'none'
+    type = 'builtin',
+    modules = {},
+    install = {
+        lua = {
+            ['sharded_queue.api'] = 'sharded_queue/api.lua',
+            ['sharded_queue.storage'] = 'sharded_queue/storage.lua',
+            ['sharded_queue.driver_fifottl'] = 'sharded_queue/driver_fifottl.lua',
+            ['sharded_queue.time'] = 'sharded_queue/time.lua',
+            ['sharded_queue.utils'] = 'sharded_queue/utils.lua',
+            ['sharded_queue.state'] = 'sharded_queue/state.lua',
+        }
+    }
 }
