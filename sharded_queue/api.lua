@@ -344,9 +344,32 @@ local function apply_config(cfg, opts)
     end
 end
 
+-- FIXME: Remove when https://github.com/tarantool/cartridge/issues/308 resolved
+local function queue_action_wrapper(action)
+    return function(name, ...)
+        if not sharded_queue.tube[name] then
+            return nil, string.format('No queue "%s" initialized yet', name)
+        end
+
+        return sharded_queue.tube[name][action](sharded_queue.tube[name], ...)
+    end
+end
+
 return {
     init = init,
     apply_config = apply_config,
+    put = queue_action_wrapper('put'),
+    take = queue_action_wrapper('take'),
+    delete = queue_action_wrapper('delete'),
+    release = queue_action_wrapper('release'),
+    touch = queue_action_wrapper('touch'),
+    ack = queue_action_wrapper('ack'),
+    bury = queue_action_wrapper('bury'),
+    kick = queue_action_wrapper('kick'),
+    peek = queue_action_wrapper('peek'),
+    drop = queue_action_wrapper('drop'),
+    statistics = queue_action_wrapper('statistics'),
+
     dependencies = {
         'cartridge.roles.vshard-router',
     }
