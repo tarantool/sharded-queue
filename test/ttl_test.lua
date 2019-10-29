@@ -23,7 +23,7 @@ function g.test_touch_task()
         'simple data',
         { ttl = 0.2, ttr = 0.1 }
     })
-    
+
     local peek_task = g.queue_conn:call(shape_cmd(tube_name, 'peek'), {
         task[utils.index.task_id]
     })
@@ -42,7 +42,7 @@ function g.test_touch_task()
     t.assert_equals(taken_task[utils.index.task_id], task[utils.index.task_id])
 
     peek_task = g.queue_conn:call(shape_cmd(tube_name, 'peek'), { task[utils.index.task_id] })
-    t.assert_equals(peek_task[utils.index.status], utils.state.TAKEN)        
+    t.assert_equals(peek_task[utils.index.status], utils.state.TAKEN)
 end
 
 
@@ -51,12 +51,12 @@ function g.test_delayed_tasks()
     g.queue_conn:call('queue.create_tube', {
         tube_name
     })
-    -- task delayed for 0.1 sec 
+    -- task delayed for 0.1 sec
     local task = g.queue_conn:call(shape_cmd(tube_name, 'put'), {
         'simple data',
         { delay = 1, ttl = 1, ttr = 0.1 }
     })
-    
+
     local peek_task = g.queue_conn:call(shape_cmd(tube_name, 'peek'), {
         task[utils.index.task_id]
     })
@@ -84,7 +84,8 @@ function g.test_delayed_tasks()
     t.assert_equals(peek_task[utils.index.status], utils.state.READY)
 
     -- retake task after ttr
-    t.assert_equals(g.queue_conn:call(shape_cmd(tube_name, 'take'), { 0.1 })[utils.index.data], 'simple data')
+    local take_cmd = shape_cmd(tube_name, 'take')
+    t.assert_equals(g.queue_conn:call(take_cmd, { 0.1 })[utils.index.data], 'simple data')
 
     peek_task = g.queue_conn:call(shape_cmd(tube_name, 'peek'), {
         task[utils.index.task_id]

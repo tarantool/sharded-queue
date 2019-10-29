@@ -1,3 +1,5 @@
+local fiber = require('fiber')
+
 local utils = {}
 
 utils.state = {
@@ -39,7 +41,7 @@ function utils.nano(tm)
     return 0ULL + tm * 1e6
 end
 
-function sign(val)
+local function sign(val)
     return (val >= 0 and 1) or -1
 end
 
@@ -52,7 +54,7 @@ function utils.array_contains(array, value, key)
     if not array then
         return false
     end
-    local key = key or function(x) return x end
+    key = key or function(x) return x end
     for _, v in ipairs(array) do
         if key(v) == value then
             return true

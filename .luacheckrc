@@ -1,16 +1,3 @@
-std = {
-    read_globals = {'require', 'debug', 'pcall', 'xpcall', 'tostring',
-        'tonumber', 'type', 'assert', 'ipairs', 'math', 'error', 'string',
-        'table', 'pairs', 'os', 'io', 'select', 'unpack', 'dofile', 'next',
-        'loadstring', 'setfenv',
-        'rawget', 'rawset', '_G',
-        'getmetatable', 'setmetatable',
-        'print', 'tonumber64', 'arg'
-
-    },
-    globals = {'box', 'package'}
-}
-redefined = False
-exclude_files = {
-    './task/webui-bundle.lua'
-}
+include_files = {"src/**/*.lua", "*.rockspec", "*.luacheckrc", "test/**/*.lua"}
+exclude_files = {".rocks/", "tmp/"}
+max_line_length = 100

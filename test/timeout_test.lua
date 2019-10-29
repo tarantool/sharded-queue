@@ -18,7 +18,7 @@ local function task_take(tube_name, timeout, channel)
     local start = fiber.time64()
     local task = g.queue_conn:call(shape_cmd(tube_name, 'take'), { timeout })
     local duration = fiber.time64() - start
-    
+
     channel:put(duration)
     channel:put(task)
 
@@ -38,7 +38,7 @@ function g.test_try_waiting()
     local timeout = 3 -- second
 
     local channel = fiber.channel(2)
-    local task_fiber = fiber.create(task_take, tube_name, timeout, channel)
+    fiber.create(task_take, tube_name, timeout, channel)
 
     fiber.sleep(timeout)
 
@@ -66,7 +66,7 @@ function g.test_wait_put_taking()
     local timeout = 3
 
     local channel = fiber.channel(2)
-    local task_fiber = fiber.create(task_take, tube_name, timeout, channel)
+    fiber.create(task_take, tube_name, timeout, channel)
 
     fiber.sleep(timeout / 2)
     g.queue_conn:call(shape_cmd(tube_name, 'put'), { 'simple_task' })

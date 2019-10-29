@@ -23,7 +23,7 @@ function g.test_statistics()
     local task_count = 64
     local middle = 32
 
-    local cur_stat = nil
+    local cur_stat
     local task_pack = {}
 
     for i = 1, task_count do
@@ -55,7 +55,7 @@ function g.test_statistics()
     -- take few task
     local taken_task_count = 20
     local taken_task_pack  = {}
-    for i = 1, taken_task_count do
+    for _ = 1, taken_task_count do
         table.insert(taken_task_pack,
             g.queue_conn:call(
                 shape_cmd(tube_name, 'take'),

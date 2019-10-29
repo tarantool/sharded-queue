@@ -14,13 +14,13 @@ end
 
 function g.test_drop_empty()
     local tube_name = 'drop_empty_test'
-    
+
     g.queue_conn:call('queue.create_tube', {
         tube_name
     })
     g.queue_conn:call(shape_cmd(tube_name, 'drop'))
 
-    cur_stat = g.queue_conn:call('queue.statistics', { tube_name })
+    local cur_stat = g.queue_conn:call('queue.statistics', { tube_name })
     t.assert_equals(cur_stat, nil)
 end
 
