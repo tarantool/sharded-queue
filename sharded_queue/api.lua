@@ -368,9 +368,13 @@ return {
     kick = queue_action_wrapper('kick'),
     peek = queue_action_wrapper('peek'),
     drop = queue_action_wrapper('drop'),
-    statistics = queue_action_wrapper('statistics'),
+    statistics = sharded_queue.statistics,
 
     dependencies = {
         'cartridge.roles.vshard-router',
+    },
+
+    __private = {
+        sharded_tube = sharded_tube,
     }
 }
