@@ -1,26 +1,25 @@
 
 # Tarantool Sharded Queue Application
 
-This application is an implementation of a distributed queue compatible with [Tarantool queue](https://github.com/tarantool/queue) (*fifiottl driver*)
+This module provides cartridge roles implementing of a distributed queue compatible with [Tarantool queue](https://github.com/tarantool/queue) (*fifiottl driver*)
 
-## Running application
+## Installing
 
-Install dependencies:
+1. Add dependency to your application rockspec
+2. Add roles to your application:
+```init.lua
+cartridge.cfg({
+    ...
+    roles = {        
+        'sharded_queue.storage',
+        'sharded_queue.api'
+        ...
+    },
+    ...
+})
+```
+3. Queue API will be available on all nodes where sharded_queue.api is enabled
 
-```
-tarantoolctl rocks make
-```
-
-The script that starts and configures the cartridge is located in `example`
-Run it.
-```
-./example/configurate.sh
-```
-To stop and clear data, say:
-
-```
-./example/stop.sh
-```
 ## Using
 
 The queue api is located on all instances of the router masters that we launched.
@@ -28,7 +27,7 @@ For a test configuration, this is one router on `localhost:3301`
 
 ```
 tarantool@user:~/sharded_queue$ tarantool
-Tarantool Enterprise 1.10.3-6-gfbf53b9
+Tarantool 1.10.3-6-gfbf53b9
 type 'help' for interactive help
 tarantool> netbox = require('net.box')
 ---
@@ -51,6 +50,26 @@ tarantool> queue_conn:call('queue.tube.test_tube:take')
 ...
 
 ```
+
+## Running locally
+
+Install dependencies:
+
+```
+tarantoolctl rocks make
+```
+
+The script that starts and configures the cartridge is located in `example`
+Run it.
+```
+./example/configurate.sh
+```
+To stop and clear data, say:
+
+```
+./example/stop.sh
+```
+
 ## Launching tests
     
 Say:

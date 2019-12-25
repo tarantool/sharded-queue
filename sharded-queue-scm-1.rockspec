@@ -1,13 +1,13 @@
 package = 'sharded-queue'
 version = 'scm-1'
 source  = {
-    url = 'git+ssh://git@gitlab.com:tarantool/sandbox/sharded-queue.git';
+    url = 'git+https://github.com/tarantool/sharded-queue.git';
     branch = 'master';
 }
 dependencies = {
     'lua >= 5.1';
     'checks >= 3.0.0',
-    'cartridge == 1.2.0',
+    'cartridge >= 1.2.0, < 3.0.0',
 }
 
 external_dependencies = {
@@ -17,8 +17,8 @@ external_dependencies = {
 }
 
 build = {
-    type = 'builtin',
-    modules = {},
+    type = 'make',
+	build_target = 'all',
     install = {
         lua = {
             ['sharded_queue.api'] = 'sharded_queue/api.lua',
@@ -27,6 +27,10 @@ build = {
             ['sharded_queue.time'] = 'sharded_queue/time.lua',
             ['sharded_queue.utils'] = 'sharded_queue/utils.lua',
             ['sharded_queue.state'] = 'sharded_queue/state.lua',
-        }
-    }
+        },
+    },
+    build_variables = {
+        version = 'scm-1',
+    },
+    install_pass = false,
 }
