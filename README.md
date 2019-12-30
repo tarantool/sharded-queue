@@ -22,7 +22,7 @@ cartridge.cfg({
 
 ## Using
 
-The queue api is located on all instances of the router masters that we launched.
+The good old queue api is located on all instances of the router masters that we launched.
 For a test configuration, this is one router on `localhost:3301`
 
 ```
@@ -49,6 +49,16 @@ tarantool> queue_conn:call('queue.tube.test_tube:take')
   'task_1', 1]
 ...
 
+```
+
+You may also set up tubes using cluster-wide config:
+```config.yml
+tubes:
+     tube_1:
+        temporary: true
+        ttl: 60
+     tube_2:
+        driver: my_app.my_driver
 ```
 
 ## Running locally

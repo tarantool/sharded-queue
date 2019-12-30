@@ -12,15 +12,8 @@ utils.state = {
 
 utils.index = {
     task_id    = 1,
-    bucket_id  = 2,
-    status     = 3,
-    created    = 4,
-    priority   = 5,
-    ttl        = 6,
-    ttr        = 7,
-    next_event = 8,
-    data       = 9,
-    index      = 10
+    status     = 2,
+    data       = 3
 }
 
 function utils.sec(tm)

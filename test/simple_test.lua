@@ -4,7 +4,6 @@ local g = t.group('simple_test')
 local config = require('test.helper.config')
 local utils = require('test.helper.utils')
 
-
 g.before_all = function()
     g.queue_conn = config.cluster:server('queue-router').net_box
 end
@@ -13,55 +12,69 @@ local function shape_cmd(tube_name, cmd)
     return string.format('queue.tube.%s:%s', tube_name, cmd)
 end
 
-function g.test_put_taken()
-    local tube_name = 'put_taken_test'
+for test_name, options in pairs({
+    fifottl = {},
+    fifo = {
+        temporary = true,
+        driver = 'sharded_queue.drivers.fifo'
+    }
+}) do
+    g['test_put_taken_' .. test_name] = function()
+        local tube_name = 'put_taken_test_' .. test_name
 
-    g.queue_conn:call('queue.create_tube', {
-        tube_name
-    })
-
-    -- tasks data for putting
-    local task_count = 100
-    local tasks_data = {}
-    for i = 1, task_count do
-        table.insert(tasks_data, {
-            name = 'task_' .. i,
-            raw = '*'
+        g.queue_conn:call('queue.create_tube', {
+            tube_name,
+            options
         })
-    end
-    -- returned tasks
-    local task_ids = {}
-    for _, data in pairs(tasks_data) do
-        local task = g.queue_conn:call(shape_cmd(tube_name, 'put'), { data } )
 
-        local peek_task = g.queue_conn:call(shape_cmd(tube_name, 'peek'),
-            {
+        -- tasks data for putting
+        local task_count = 100
+        local tasks_data = {}
+        for i = 1, task_count do
+            table.insert(tasks_data, {
+                name = 'task_' .. i,
+                raw = '*'
+            })
+        end
+        -- returned tasks
+        local task_ids = {}
+        for _, data in pairs(tasks_data) do
+            local task = g.queue_conn:call(shape_cmd(tube_name, 'put'), { data })
+
+            local peek_task = g.queue_conn:call(shape_cmd(tube_name, 'peek'),
+                    {
+                        task[utils.index.task_id]
+                    })
+
+            t.assert_equals(peek_task[utils.index.status], utils.state.READY)
+            table.insert(task_ids, task[utils.index.task_id])
+        end
+        -- try taken this tasks
+        local taken_task_ids = {}
+        for _ = 1, #task_ids do
+            local task = g.queue_conn:call(shape_cmd(tube_name, 'take'))
+            local peek_task = g.queue_conn:call(shape_cmd(tube_name, 'peek'), {
                 task[utils.index.task_id]
             })
+            t.assert_equals(peek_task[utils.index.status], utils.state.TAKEN)
+            table.insert(taken_task_ids, task[utils.index.task_id])
+        end
+        -- compare
+        local stat = g.queue_conn:call('queue.statistics', { tube_name })
+        if stat ~= nil then
+            t.assert_equals(stat.tasks.ready, 0)
+            t.assert_equals(stat.tasks.taken, task_count)
 
-        t.assert_equals(peek_task[utils.index.status], utils.state.READY)
-        table.insert(task_ids, task[utils.index.task_id])
+            t.assert_equals(stat.calls.put, task_count)
+            t.assert_equals(stat.calls.take, task_count)
+        end
+
+        for _, task_id in pairs(task_ids) do
+            g.queue_conn:call(shape_cmd(tube_name, 'ack'), {task_id})
+        end
+
+        t.assert_equals(utils.equal_sets(task_ids, taken_task_ids), true)
     end
-    -- try taken this tasks
-    local taken_task_ids = {}
-    for _ = 1, #task_ids do
-        local task = g.queue_conn:call(shape_cmd(tube_name, 'take'))
-        local peek_task = g.queue_conn:call(shape_cmd(tube_name, 'peek'), {
-            task[utils.index.task_id]
-        })
-        t.assert_equals(peek_task[utils.index.status], utils.state.TAKEN)
-        table.insert(taken_task_ids, task[utils.index.task_id])
-    end
-    -- compare
-    local stat = g.queue_conn:call('queue.statistics', { tube_name })
-
-    t.assert_equals(stat.tasks.ready, 0)
-    t.assert_equals(stat.tasks.taken, task_count)
-
-    t.assert_equals(stat.calls.put, task_count)
-    t.assert_equals(stat.calls.take, task_count)
-
-    t.assert_equals(utils.equal_sets(task_ids, taken_task_ids), true)
 end
 
 function g.test_delete()
