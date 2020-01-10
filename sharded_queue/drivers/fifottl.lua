@@ -275,7 +275,6 @@ end
 
 
 function method.put(args)
-
     local delay = args.delay or 0
     -- setup params --
     local stat = box.space._stat:get(args.tube_name)

@@ -6,7 +6,10 @@ require('json').cfg { encode_use_tostring = true }
 local config = {}
 
 config.root = fio.dirname(fio.abspath(package.search('init')))
+package.setsearchroot(config.root)
+
 config.datadir = fio.pathjoin(config.root, 'dev')
+config.unitdir = fio.pathjoin(config.datadir, 'unit')
 
 config.cluster = cartridge_helpers.Cluster:new({
     datadir = config.datadir,
@@ -61,7 +64,11 @@ config.cluster = cartridge_helpers.Cluster:new({
 t.before_suite(function ()
     fio.rmtree(config.datadir)
     fio.mktree(config.datadir)
-    config.cluster:start() end)
+    config.cluster:start()
+
+    fio.mktree(config.unitdir)
+    box.cfg{work_dir=config.unitdir}
+end)
 
 t.after_suite(function () config.cluster:stop() end)
 

@@ -4,7 +4,7 @@ stages:
 
 variables:
   DOWNLOAD_ENDPOINT: download.tarantool.io/enterprise
-  BUNDLE_VERSION: 1.10.3-100-g8224889
+  BUNDLE_VERSION: 1.10.4-24-ge72123b
   ROCK_NAME: sharded-queue
 
 build:

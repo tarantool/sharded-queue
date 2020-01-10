@@ -18,8 +18,6 @@ local map = function(method, args, uri_list)
     local fibers_data = {}
 
     for _, uri in ipairs(uri_list) do
-        log.info(uri)
-        log.info(args)
         local fiber_obj = fiber.new(
             remote_call, method, uri, args)
 
@@ -56,7 +54,7 @@ function sharded_tube.put(self, data, options)
     options.bucket_id = bucket_id
     options.bucket_count = bucket_count
 
-    local task = vshard.router.call(bucket_id,
+    local task, err = vshard.router.call(bucket_id,
         'write', 'tube_put', { options })
     return task
 end
@@ -80,20 +78,6 @@ function sharded_tube.take(self, timeout, options)
     options = options or {}
     options.tube_name = self.tube_name
 
-    local storages = cartridge_rpc.get_candidates(
-        'sharded_queue.storage',
-        {
-            leader_only = true
-        })
-
-    utils.array_shuffle(storages)
-
-    local task = take_task(storages, options)
-
-    if task ~= nil then
-        return task
-    end
-
     timeout = time.nano(timeout) or time.TIMEOUT_INFINITY
 
     local frequency = 1000
@@ -108,17 +92,20 @@ function sharded_tube.take(self, timeout, options)
     while timeout ~= 0 do
         local begin = time.cur()
 
-        local cond = fiber.cond()
-        cond:wait(wait_part)
+        local storages = cartridge_rpc.get_candidates(
+            'sharded_queue.storage',
+            { leader_only = true })
 
-        task = take_task(storages, options)
+        utils.array_shuffle(storages)
 
-        if task ~= nil then
-            return task
-        end
+        local task = take_task(storages, options)
+
+        if task ~= nil then return task end
+
+        fiber.sleep(wait_part)
 
         local duration = time.cur() - begin
-        timeout = timeout > duration and timeout - duration or 0
+        timeout = timeout > duration and timeout -  duration or 0
     end
 end
 
