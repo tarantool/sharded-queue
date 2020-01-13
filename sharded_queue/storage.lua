@@ -22,6 +22,22 @@ local function map_tubes(cfg_tubes)
     return result
 end
 
+local function validate_config(conf_new, _)
+    local cfg_tubes = conf_new.tubes or {}
+    for tube_name, tube_opts in pairs(cfg_tubes) do
+        if tube_opts.driver ~= nil then
+            if type('tube_opts.driver') ~= 'string' then
+                return nil, 'Driver name must be a valid module name for tube' .. tube_name
+            end
+            local ok, _ = pcall(require, tube_opts.driver)
+            if not ok then
+                return nil, ('Driver %s could not be loaded for tube %s'):format(tube_opts.driver, tube_name)
+            end
+        end
+    end
+    return true
+end
+
 local function apply_config(cfg, opts)
     if opts.is_master then
         local cfg_tubes = cfg.tubes or {}
@@ -96,6 +112,7 @@ local function init(opts)
         for _, name in pairs(methods) do
             local func = function(args)
                 local tube_name = args.tube_name
+                if tubes[tube_name].method[name] == nil then error(('Method %s not implemented in tube %s'):format(name, tube_name)) end
                 return tubes[tube_name].method[name](args)
             end
 
@@ -109,6 +126,7 @@ end
 return {
     init = init,
     apply_config = apply_config,
+    validate_config = validate_config,
     dependencies = {
         'cartridge.roles.vshard-storage',
     },

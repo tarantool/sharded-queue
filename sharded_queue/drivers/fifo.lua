@@ -6,7 +6,7 @@ local method = {}
 
 local function tube_create(opts)
     local space_opts = {}
-    local if_not_exists = opts.if_not_exists or false
+    local if_not_exists = opts.if_not_exists or true
     space_opts.temporary = opts.temporary or false
     space_opts.if_not_exists = if_not_exists
     space_opts.engine = opts.engine or 'memtx'
@@ -85,6 +85,17 @@ function method.take(args)
     end
 end
 
+function method.ack(args)
+    local task = box.space[args.tube_name]:get(args.task_id)
+    box.space[args.tube_name]:delete(args.task_id)
+    if task ~= nil then
+        task = task:tomap()
+        task.status = state.DONE
+    end
+
+    return normalize_task(task)
+end
+
 -- touch task
 function method.touch(args)
     error('fifo queue does not support touch')
@@ -143,4 +154,3 @@ return {
     drop = tube_drop,
     method = method
 }
-

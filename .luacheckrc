@@ -1,3 +1,3 @@
 include_files = {"src/**/*.lua", "*.rockspec", "*.luacheckrc", "test/**/*.lua"}
 exclude_files = {".rocks/", "tmp/"}
-max_line_length = 100
+max_line_length = 150

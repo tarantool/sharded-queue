@@ -77,6 +77,16 @@ for test_name, options in pairs({
     end
 end
 
+function g.test_invalid_driver()
+    t.assert_error_msg_contains('Driver unexistent could not be loaded', function() g.queue_conn:call('queue.create_tube', {
+        'invalid',
+        {
+            driver = 'unexistent'
+        }
+    })
+    end)
+end
+
 function g.test_delete()
     local tube_name = 'delete_test'
     g.queue_conn:call('queue.create_tube', {

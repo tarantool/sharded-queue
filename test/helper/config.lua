@@ -6,7 +6,6 @@ require('json').cfg { encode_use_tostring = true }
 local config = {}
 
 config.root = fio.dirname(fio.abspath(package.search('init')))
-package.setsearchroot(config.root)
 
 config.datadir = fio.pathjoin(config.root, 'dev')
 config.unitdir = fio.pathjoin(config.datadir, 'unit')
@@ -67,7 +66,10 @@ t.before_suite(function ()
     config.cluster:start()
 
     fio.mktree(config.unitdir)
-    box.cfg{work_dir=config.unitdir}
+    box.cfg{
+        work_dir=config.unitdir,
+        wal_mode='none'
+    }
 end)
 
 t.after_suite(function () config.cluster:stop() end)
