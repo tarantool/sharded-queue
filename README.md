@@ -78,3 +78,13 @@ Say:
 tarantoolctl rocks install luatest
 .rocks/bin/luatest -v
 ```
+
+## API extensions (compared to tarantool/queue)
+
+* ``tube:take`` method has additional table argument ``options``. It may be used to provide additional logic in some
+    drivers.
+    
+    Example:
+    ```lua
+      tube:take(3, {cumstom_driver_option='test'})
+    ```

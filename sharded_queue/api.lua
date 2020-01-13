@@ -62,22 +62,23 @@ function sharded_tube.put(self, data, options)
 end
 
 -- function for try get task from instance --
-local function take_task(tube_name, storages)
+local function take_task(storages, options)
     for _, instance_uri in ipairs(storages) do
         -- try take task from all instance
         local _, ret = pcall(remote_call, 'tube_take',
             instance_uri,
-            {
-                tube_name = tube_name
-            })
+            options
+        )
         if ret ~= nil then
             return ret
         end
     end
 end
 
-function sharded_tube.take(self, timeout)
+function sharded_tube.take(self, timeout, options)
     -- take task from tube --
+    options = options or {}
+    options.tube_name = self.tube_name
 
     local storages = cartridge_rpc.get_candidates(
         'sharded_queue.storage',
@@ -87,7 +88,7 @@ function sharded_tube.take(self, timeout)
 
     utils.array_shuffle(storages)
 
-    local task = take_task(self.tube_name, storages)
+    local task = take_task(storages, options)
 
     if task ~= nil then
         return task
@@ -110,7 +111,7 @@ function sharded_tube.take(self, timeout)
         local cond = fiber.cond()
         cond:wait(wait_part)
 
-        task = take_task(self.tube_name, storages)
+        task = take_task(storages, options)
 
         if task ~= nil then
             return task
