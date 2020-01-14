@@ -9,9 +9,9 @@ local utils = require('sharded_queue.utils')
 local cartridge_pool = require('cartridge.pool')
 local cartridge_rpc = require('cartridge.rpc')
 
-local remote_call = function(method, instance_uri, args)
+local remote_call = function(method, instance_uri, args, timeout)
     local conn = cartridge_pool.connect(instance_uri)
-    return conn:call(method, { args })
+    return conn:call(method, { args }, { timeout = timeout })
 end
 
 local map = function(method, args, uri_list)
@@ -62,16 +62,26 @@ function sharded_tube.put(self, data, options)
 end
 
 -- function for try get task from instance --
-local function take_task(storages, options)
+local function take_task(storages, options, take_timeout, call_timeout)
     for _, instance_uri in ipairs(storages) do
+        if take_timeout == 0 then
+            break
+        end
+        local begin = time.cur()
+
         -- try take task from all instance
-        local _, ret = pcall(remote_call, 'tube_take',
+        local ok, ret = pcall(remote_call, 'tube_take',
             instance_uri,
-            options
+            options,
+            call_timeout
         )
-        if ret ~= nil then
+
+        if ret ~= nil and ok then
             return ret
         end
+
+        local duration = time.cur() - begin
+        take_timeout = take_timeout > duration and take_timeout -  duration or 0
     end
 end
 
@@ -80,18 +90,23 @@ function sharded_tube.take(self, timeout, options)
     options = options or {}
     options.tube_name = self.tube_name
 
-    timeout = time.nano(timeout) or time.TIMEOUT_INFINITY
+    local remote_call_timeout = timeout or time.MIN_NET_BOX_CALL_TIMEOUT
+    if remote_call_timeout < time.MIN_NET_BOX_CALL_TIMEOUT then
+        remote_call_timeout = time.MIN_NET_BOX_CALL_TIMEOUT
+    end
+
+    local take_timeout = time.nano(timeout) or time.TIMEOUT_INFINITY
 
     local frequency = 1000
     local wait_part = 0.01 -- maximum waiting time in second
 
-    local calc_part = time.sec(timeout / frequency)
+    local calc_part = time.sec(take_timeout / frequency)
 
     if calc_part < wait_part then
         wait_part = tonumber(calc_part)
     end
 
-    while timeout ~= 0 do
+    while take_timeout ~= 0 do
         local begin = time.cur()
 
         local storages = cartridge_rpc.get_candidates(
@@ -100,14 +115,15 @@ function sharded_tube.take(self, timeout, options)
 
         utils.array_shuffle(storages)
 
-        local task = take_task(storages, options)
+        local task = take_task(storages, options, take_timeout, remote_call_timeout)
 
         if task ~= nil then return task end
 
         fiber.sleep(wait_part)
 
         local duration = time.cur() - begin
-        timeout = timeout > duration and timeout - duration or 0
+
+        take_timeout = take_timeout > duration and take_timeout -  duration or 0
     end
 end
 
