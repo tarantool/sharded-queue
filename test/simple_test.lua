@@ -17,6 +17,10 @@ for test_name, options in pairs({
     fifo = {
         temporary = true,
         driver = 'sharded_queue.drivers.fifo'
+    },
+    tagged = {
+        temporary = true,
+        driver = 'sharded_queue.drivers.tagged'
     }
 }) do
     g['test_put_taken_' .. test_name] = function()
