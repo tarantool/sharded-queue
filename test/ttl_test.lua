@@ -30,12 +30,10 @@ function g.test_touch_task()
     t.assert_equals(peek_task[utils.index.status], utils.state.READY)
     t.assert_equals(peek_task[utils.index.data], 'simple data')
 
-    local touched_task = g.queue_conn:call(shape_cmd(tube_name, 'touch'), {
+    g.queue_conn:call(shape_cmd(tube_name, 'touch'), {
         task[utils.index.task_id], 0.8
     })
 
-    t.assert_equals(
-        utils.round(tonumber(utils.sec(touched_task[utils.index.ttl])), 0.01), 1)
     fiber.sleep(0.5)
 
     local taken_task = g.queue_conn:call(shape_cmd(tube_name, 'take'))

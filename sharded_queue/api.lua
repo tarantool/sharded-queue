@@ -18,8 +18,6 @@ local map = function(method, args, uri_list)
     local fibers_data = {}
 
     for _, uri in ipairs(uri_list) do
-        log.info(uri)
-        log.info(args)
         local fiber_obj = fiber.new(
             remote_call, method, uri, args)
 
@@ -56,8 +54,10 @@ function sharded_tube.put(self, data, options)
     options.bucket_id = bucket_id
     options.bucket_count = bucket_count
 
-    local task = vshard.router.call(bucket_id,
+    local task, err = vshard.router.call(bucket_id,
         'write', 'tube_put', { options })
+    -- re-raise storage errors
+    if err ~= nil then error(err) end
     return task
 end
 
@@ -80,20 +80,6 @@ function sharded_tube.take(self, timeout, options)
     options = options or {}
     options.tube_name = self.tube_name
 
-    local storages = cartridge_rpc.get_candidates(
-        'sharded_queue.storage',
-        {
-            leader_only = true
-        })
-
-    utils.array_shuffle(storages)
-
-    local task = take_task(storages, options)
-
-    if task ~= nil then
-        return task
-    end
-
     timeout = time.nano(timeout) or time.TIMEOUT_INFINITY
 
     local frequency = 1000
@@ -108,14 +94,17 @@ function sharded_tube.take(self, timeout, options)
     while timeout ~= 0 do
         local begin = time.cur()
 
-        local cond = fiber.cond()
-        cond:wait(wait_part)
+        local storages = cartridge_rpc.get_candidates(
+            'sharded_queue.storage',
+            { leader_only = true })
 
-        task = take_task(storages, options)
+        utils.array_shuffle(storages)
 
-        if task ~= nil then
-            return task
-        end
+        local task = take_task(storages, options)
+
+        if task ~= nil then return task end
+
+        fiber.sleep(wait_part)
 
         local duration = time.cur() - begin
         timeout = timeout > duration and timeout - duration or 0
@@ -128,12 +117,14 @@ function sharded_tube.delete(self, task_id)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
-    local task = vshard.router.call(bucket_id, 'write', 'tube_delete', {
+    local task, err = vshard.router.call(bucket_id, 'write', 'tube_delete', {
         {
             tube_name = self.tube_name,
             task_id = task_id
         }
     })
+    -- re-raise storage errors
+    if err ~= nil then error(err) end
 
     return task
 end
@@ -144,12 +135,14 @@ function sharded_tube.release(self, task_id)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
-    local task = vshard.router.call(bucket_id, 'write', 'tube_release', {
+    local task, err = vshard.router.call(bucket_id, 'write', 'tube_release', {
         {
             tube_name = self.tube_name,
             task_id = task_id
         }
     })
+    -- re-raise storage errors
+    if err ~= nil then error(err) end
 
     return task
 end
@@ -168,13 +161,16 @@ function sharded_tube.touch(self, task_id, delta)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
-    local task = vshard.router.call(bucket_id, 'write', 'tube_touch', {
+    local task, err = vshard.router.call(bucket_id, 'write', 'tube_touch', {
         {
             tube_name = self.tube_name,
             task_id = task_id,
             delta = delta
         }
     })
+    -- re-raise storage errors
+    if err ~= nil then error(err) end
+
     return task
 end
 
@@ -184,12 +180,14 @@ function sharded_tube.ack(self, task_id)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
-    local task = vshard.router.call(bucket_id, 'write', 'tube_ack', {
+    local task, err = vshard.router.call(bucket_id, 'write', 'tube_ack', {
         {
             tube_name = self.tube_name,
             task_id = task_id
         }
     })
+    -- re-raise storage errors
+    if err ~= nil then error(err) end
 
     return task
 end
@@ -200,12 +198,14 @@ function sharded_tube.bury(self, task_id)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
-    local task = vshard.router.call(bucket_id, 'write', 'tube_bury', {
+    local task, err = vshard.router.call(bucket_id, 'write', 'tube_bury', {
         {
             tube_name = self.tube_name,
             task_id = task_id
         }
     })
+    -- re-raise storage errors
+    if err ~= nil then error(err) end
 
     return task
 end
@@ -229,7 +229,7 @@ function sharded_tube.kick(self, count)
             })
         if not ok then
             log.error(k)
-            return
+            return kicked_count
         end
 
         kicked_count = kicked_count + k
@@ -246,12 +246,14 @@ function sharded_tube.peek(self, task_id)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
-    local task = vshard.router.call(bucket_id, 'write', 'tube_peek', {
+    local task, err = vshard.router.call(bucket_id, 'write', 'tube_peek', {
         {
             tube_name = self.tube_name,
             task_id = task_id
         }
     })
+    -- re-raise storage errors
+    if err ~= nil then error(err) end
 
     return task
 end
@@ -308,7 +310,8 @@ function sharded_queue.create_tube(tube_name, options)
     end
 
     tubes[tube_name] = options or {}
-    cartridge.config_patch_clusterwide({ tubes = tubes })
+    local ok, err = cartridge.config_patch_clusterwide({ tubes = tubes })
+    if not ok then error(err) end
 
     return sharded_queue.tube[tube_name]
 end

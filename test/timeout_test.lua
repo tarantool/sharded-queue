@@ -1,11 +1,17 @@
 local t = require('luatest')
 local g = t.group('timeout_test')
 
+local log = require('log') -- luacheck: ignore
+
 local config = require('test.helper.config')
 local utils = require('test.helper.utils')
 local fiber = require('fiber')
 
 g.before_all = function()
+    --- Workaround for https://github.com/tarantool/cartridge/issues/462
+    config.cluster:server('queue-router').net_box:close()
+    config.cluster:server('queue-router').net_box = nil
+    config.cluster:server('queue-router'):connect_net_box()
     g.queue_conn = config.cluster:server('queue-router').net_box
 end
 
@@ -21,8 +27,6 @@ local function task_take(tube_name, timeout, channel)
 
     channel:put(duration)
     channel:put(task)
-
-    fiber.kill(fiber.id())
 end
 --
 
@@ -45,7 +49,7 @@ function g.test_try_waiting()
     local waiting_time = tonumber(channel:get()) / 1e6
     local task = channel:get()
 
-    t.assert_equals(utils.round(waiting_time, 0.1), 3)
+    t.assert_almost_equals(waiting_time, 3, 0.1)
     t.assert_equals(task, nil)
 
     channel:close()
@@ -69,12 +73,12 @@ function g.test_wait_put_taking()
     fiber.create(task_take, tube_name, timeout, channel)
 
     fiber.sleep(timeout / 2)
-    g.queue_conn:call(shape_cmd(tube_name, 'put'), { 'simple_task' })
+    t.assert(g.queue_conn:call(shape_cmd(tube_name, 'put'), { 'simple_task' }, {timeout=1}))
 
     local waiting_time = tonumber(channel:get()) / 1e6
     local task = channel:get()
 
-    t.assert_equals(utils.round(waiting_time, 0.1), timeout / 2)
+    t.assert_almost_equals(waiting_time, timeout / 2, 0.1)
     t.assert_equals(task[utils.index.data], 'simple_task')
 
     channel:close()

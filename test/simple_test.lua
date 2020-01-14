@@ -4,7 +4,6 @@ local g = t.group('simple_test')
 local config = require('test.helper.config')
 local utils = require('test.helper.utils')
 
-
 g.before_all = function()
     g.queue_conn = config.cluster:server('queue-router').net_box
 end
@@ -13,55 +12,79 @@ local function shape_cmd(tube_name, cmd)
     return string.format('queue.tube.%s:%s', tube_name, cmd)
 end
 
-function g.test_put_taken()
-    local tube_name = 'put_taken_test'
+for test_name, options in pairs({
+    fifottl = {},
+    fifo = {
+        temporary = true,
+        driver = 'sharded_queue.drivers.fifo'
+    }
+}) do
+    g['test_put_taken_' .. test_name] = function()
+        local tube_name = 'put_taken_test_' .. test_name
 
-    g.queue_conn:call('queue.create_tube', {
-        tube_name
-    })
-
-    -- tasks data for putting
-    local task_count = 100
-    local tasks_data = {}
-    for i = 1, task_count do
-        table.insert(tasks_data, {
-            name = 'task_' .. i,
-            raw = '*'
+        g.queue_conn:call('queue.create_tube', {
+            tube_name,
+            options
         })
-    end
-    -- returned tasks
-    local task_ids = {}
-    for _, data in pairs(tasks_data) do
-        local task = g.queue_conn:call(shape_cmd(tube_name, 'put'), { data } )
 
-        local peek_task = g.queue_conn:call(shape_cmd(tube_name, 'peek'),
-            {
+        -- tasks data for putting
+        local task_count = 100
+        local tasks_data = {}
+        for i = 1, task_count do
+            table.insert(tasks_data, {
+                name = 'task_' .. i,
+                raw = '*'
+            })
+        end
+        -- returned tasks
+        local task_ids = {}
+        for _, data in pairs(tasks_data) do
+            local task = g.queue_conn:call(shape_cmd(tube_name, 'put'), { data })
+
+            local peek_task = g.queue_conn:call(shape_cmd(tube_name, 'peek'),
+                    {
+                        task[utils.index.task_id]
+                    })
+
+            t.assert_equals(peek_task[utils.index.status], utils.state.READY)
+            task_ids[task[utils.index.task_id]] = true
+        end
+        -- try taken this tasks
+        local taken_task_ids = {}
+        for _, _ in pairs(task_ids) do
+            local task = g.queue_conn:call(shape_cmd(tube_name, 'take'))
+            local peek_task = g.queue_conn:call(shape_cmd(tube_name, 'peek'), {
                 task[utils.index.task_id]
             })
+            t.assert_equals(peek_task[utils.index.status], utils.state.TAKEN)
+            taken_task_ids[task[utils.index.task_id]] = true
+        end
+        -- compare
+        local stat = g.queue_conn:call('queue.statistics', { tube_name })
+        if stat ~= nil then
+            t.assert_equals(stat.tasks.ready, 0)
+            t.assert_equals(stat.tasks.taken, task_count)
 
-        t.assert_equals(peek_task[utils.index.status], utils.state.READY)
-        table.insert(task_ids, task[utils.index.task_id])
+            t.assert_equals(stat.calls.put, task_count)
+            t.assert_equals(stat.calls.take, task_count)
+        end
+
+        for task_id, _ in pairs(task_ids) do
+            g.queue_conn:call(shape_cmd(tube_name, 'ack'), {task_id})
+        end
+
+        t.assert_equals(task_ids, taken_task_ids)
     end
-    -- try taken this tasks
-    local taken_task_ids = {}
-    for _ = 1, #task_ids do
-        local task = g.queue_conn:call(shape_cmd(tube_name, 'take'))
-        local peek_task = g.queue_conn:call(shape_cmd(tube_name, 'peek'), {
-            task[utils.index.task_id]
-        })
-        t.assert_equals(peek_task[utils.index.status], utils.state.TAKEN)
-        table.insert(taken_task_ids, task[utils.index.task_id])
-    end
-    -- compare
-    local stat = g.queue_conn:call('queue.statistics', { tube_name })
+end
 
-    t.assert_equals(stat.tasks.ready, 0)
-    t.assert_equals(stat.tasks.taken, task_count)
-
-    t.assert_equals(stat.calls.put, task_count)
-    t.assert_equals(stat.calls.take, task_count)
-
-    t.assert_equals(utils.equal_sets(task_ids, taken_task_ids), true)
+function g.test_invalid_driver()
+    t.assert_error_msg_contains('Driver unexistent could not be loaded', function() g.queue_conn:call('queue.create_tube', {
+        'invalid',
+        {
+            driver = 'unexistent'
+        }
+    })
+    end)
 end
 
 function g.test_delete()
@@ -109,12 +132,12 @@ function g.test_delete()
             task[utils.index.task_id]
         })
         t.assert_equals(peek_task[utils.index.status], utils.state.TAKEN)
-        table.insert(taken_task_ids, task[utils.index.task_id])
+        taken_task_ids[task[utils.index.task_id]] = true
     end
     --
     local excepted_task_ids = {}
     for i = deleted_tasks_count + 1, #task_ids do
-        table.insert(excepted_task_ids, task_ids[i])
+        excepted_task_ids[task_ids[i]] = true
     end
 
     -- compare
@@ -127,7 +150,7 @@ function g.test_delete()
     t.assert_equals(stat.calls.put, task_count)
     t.assert_equals(stat.calls.delete, deleted_tasks_count)
 
-    t.assert_equals(utils.equal_sets(excepted_task_ids, taken_task_ids), true)
+    t.assert_equals(excepted_task_ids, taken_task_ids)
 end
 
 function g.test_release()
@@ -151,7 +174,7 @@ function g.test_release()
     for _, data in pairs(tasks_data) do
         local task = g.queue_conn:call(shape_cmd(tube_name, 'put'), { data })
         t.assert_equals(task[utils.index.status], utils.state.READY)
-        table.insert(task_ids, task[utils.index.task_id])
+        task_ids[task[utils.index.task_id]] = true
     end
 
     -- take few tasks
@@ -161,12 +184,12 @@ function g.test_release()
     for _ = 1, taken_task_count do
         local task = g.queue_conn:call(shape_cmd(tube_name, 'take'))
         t.assert_equals(task[utils.index.status], utils.state.TAKEN)
-        table.insert(taken_task_ids, task[utils.index.task_id])
+        taken_task_ids[task[utils.index.task_id]] = true
     end
 
-    t.assert_equals(utils.subset_of(taken_task_ids, task_ids), true)
+    t.assert_covers(task_ids, taken_task_ids)
 
-    for _, task_id in pairs(taken_task_ids) do
+    for task_id, _ in pairs(taken_task_ids) do
         local task = g.queue_conn:call(shape_cmd(tube_name, 'release'), { task_id })
         t.assert_equals(task[utils.index.status], utils.state.READY)
     end
@@ -174,8 +197,8 @@ function g.test_release()
     local result_task_id = {}
 
     for _ = 1, task_count do
-        table.insert(result_task_id,
-            g.queue_conn:call(shape_cmd(tube_name, 'take'))[utils.index.task_id])
+        local task_id = g.queue_conn:call(shape_cmd(tube_name, 'take'))[utils.index.task_id]
+        result_task_id[task_id] = true
     end
 
     local stat = g.queue_conn:call('queue.statistics', { tube_name })
@@ -187,7 +210,7 @@ function g.test_release()
     t.assert_equals(stat.calls.release, taken_task_count)
     t.assert_equals(stat.calls.take, task_count + taken_task_count)
 
-    t.assert_equals(utils.equal_sets(task_ids, result_task_id), true)
+    t.assert_equals(task_ids, result_task_id)
 end
 
 function g.test_bury_kick()

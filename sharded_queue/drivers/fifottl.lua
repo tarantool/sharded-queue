@@ -75,7 +75,7 @@ local function fiber_iteration(tube_name, processed)
         task = box.space[tube_name].index.watch:min { s }
         if task ~= nil and task[index.status] == s then
             if cur >= task[index.next_event] then
-                box.space[tube_name]:delete(task[index.task_id]):transform(index.status, 1, state.DONE)
+                box.space[tube_name]:delete(task[index.task_id])
                 update_stat(tube_name, 'status', 'done')
                 estimated = 0
                 processed = processed + 1
@@ -222,14 +222,6 @@ local function tube_create(args)
     fiber.create(fiber_common, args.name)
 end
 
-local function tubes()
-    local result = {}
-    for _, tuple in box.space._stat:pairs() do
-        table.insert(result, tuple[1])
-    end
-    return result
-end
-
 local function tube_drop(tube_name)
     box.space._stat:delete(tube_name)
     box.space[tube_name]:drop()
@@ -242,6 +234,11 @@ local function get_index(tube_name, bucket_id)
     else
         return task[index.index] + 1
     end
+end
+
+local function normalize_task(task)
+    if task == nil then return nil end
+    return { task.task_id, task.status, task.data }
 end
 
 local method = {}
@@ -278,7 +275,6 @@ end
 
 
 function method.put(args)
-
     local delay = args.delay or 0
     -- setup params --
     local stat = box.space._stat:get(args.tube_name)
@@ -319,7 +315,7 @@ function method.put(args)
 
     update_stat(args.tube_name, 'call', 'put')
     fibers_info[args.tube_name].cond:signal()
-    return task
+    return normalize_task(task)
 end
 
 function method.take(args)
@@ -351,7 +347,7 @@ function method.take(args)
 
     update_stat(args.tube_name, 'call', 'take')
     fibers_info[args.tube_name].cond:signal()
-    return task
+    return normalize_task(task)
 end
 
 function method.delete(args)
@@ -360,12 +356,13 @@ function method.delete(args)
     box.space[args.tube_name]:delete(args.task_id)
     box.commit()
     if task ~= nil then
-        task = task:transform(index.status, 1, state.DONE)
+        task = task:tomap()
+        task.status = state.DONE
     end
 
     update_stat(args.tube_name, 'call', 'delete')
     fibers_info[args.tube_name].cond:signal()
-    return task
+    return normalize_task(task)
 end
 
 function method.touch(args)
@@ -382,7 +379,7 @@ function method.touch(args)
 
     update_stat(args.tube_name, 'call', 'touch')
     fibers_info[args.tube_name].cond:signal()
-    return task
+    return normalize_task(task)
 end
 
 function method.ack(args)
@@ -391,17 +388,18 @@ function method.ack(args)
     box.space[args.tube_name]:delete(args.task_id)
     box.commit()
     if task ~= nil then
-        task = task:transform(index.status, 1, state.DONE)
+        task = task:tomap()
+        task.status = state.DONE
     end
 
     update_stat(args.tube_name, 'call', 'ack')
     update_stat(args.tube_name, 'status', 'done')
     fibers_info[args.tube_name].cond:signal()
-    return task
+    return normalize_task(task)
 end
 
 function method.peek(args)
-    return box.space[args.tube_name]:get(args.task_id)
+    return normalize_task(box.space[args.tube_name]:get(args.task_id))
 end
 
 function method.release(args)
@@ -409,13 +407,13 @@ function method.release(args)
 
     update_stat(args.tube_name, 'call', 'release')
     fibers_info[args.tube_name].cond:signal()
-    return task
+    return normalize_task(task)
 end
 
 function method.bury(args)
     update_stat(args.tube_name, 'call', 'bury')
     fibers_info[args.tube_name].cond:signal()
-    return box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.BURIED} })
+    return normalize_task(box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.BURIED} }))
 end
 
 -- unbury several tasks
@@ -439,6 +437,5 @@ end
 return {
     create = tube_create,
     drop   = tube_drop,
-    tubes  = tubes,
     method = method
  }
