@@ -77,6 +77,24 @@ for test_name, options in pairs({
     end
 end
 
+g.test_take_with_options = function()
+    local tube_name = 'test_take_with_options'
+    g.queue_conn:call('queue.create_tube', {
+        tube_name,
+        {
+            temporary = true,
+            driver = 'sharded_queue.drivers.fifo',
+        }
+    })
+    local options, timeout, data = {}, 1, 'data'
+
+    for _, take_args in pairs({{}, {timeout}, {timeout, options}, {box.NULL, options}, {timeout, box.NULL}}) do
+        g.queue_conn:call(shape_cmd(tube_name, 'put'), { data })
+        local task = g.queue_conn:call(shape_cmd(tube_name, 'take'), take_args)
+        t.assert_equals(task[utils.index.data], data)
+    end
+end
+
 function g.test_invalid_driver()
     t.assert_error_msg_contains('Driver unexistent could not be loaded', function() g.queue_conn:call('queue.create_tube', {
         'invalid',

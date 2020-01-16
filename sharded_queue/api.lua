@@ -87,12 +87,14 @@ end
 
 function sharded_tube.take(self, timeout, options)
     -- take task from tube --
-    options = options or {}
+    if options == nil then
+        options = {}
+    end
     options.tube_name = self.tube_name
 
-    local remote_call_timeout = timeout or time.MIN_NET_BOX_CALL_TIMEOUT
-    if remote_call_timeout < time.MIN_NET_BOX_CALL_TIMEOUT then
-        remote_call_timeout = time.MIN_NET_BOX_CALL_TIMEOUT
+    local remote_call_timeout = time.MIN_NET_BOX_CALL_TIMEOUT
+    if timeout ~= nil and timeout > time.MIN_NET_BOX_CALL_TIMEOUT then
+        remote_call_timeout = timeout
     end
 
     local take_timeout = time.nano(timeout) or time.TIMEOUT_INFINITY
