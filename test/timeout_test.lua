@@ -7,22 +7,18 @@ local config = require('test.helper.config')
 local utils = require('test.helper.utils')
 local fiber = require('fiber')
 
-g.before_all = function()
+g.before_all(function()
     --- Workaround for https://github.com/tarantool/cartridge/issues/462
     config.cluster:server('queue-router').net_box:close()
     config.cluster:server('queue-router').net_box = nil
     config.cluster:server('queue-router'):connect_net_box()
     g.queue_conn = config.cluster:server('queue-router').net_box
-end
-
-local function shape_cmd(tube_name, cmd)
-    return string.format('queue.tube.%s:%s', tube_name, cmd)
-end
+end)
 
 local function task_take(tube_name, timeout, channel)
     -- fiber function for take task with timeout and calc duration time
     local start = fiber.time64()
-    local task = g.queue_conn:call(shape_cmd(tube_name, 'take'), { timeout })
+    local task = g.queue_conn:call(utils.shape_cmd(tube_name, 'take'), { timeout })
     local duration = fiber.time64() - start
 
     channel:put(duration)
@@ -73,7 +69,7 @@ function g.test_wait_put_taking()
     fiber.create(task_take, tube_name, timeout, channel)
 
     fiber.sleep(timeout / 2)
-    t.assert(g.queue_conn:call(shape_cmd(tube_name, 'put'), { 'simple_task' }, {timeout=1}))
+    t.assert(g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), { 'simple_task' }, {timeout=1}))
 
     local waiting_time = tonumber(channel:get()) / 1e6
     local task = channel:get()

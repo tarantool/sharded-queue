@@ -34,4 +34,8 @@ function utils.nano(tm)
     return 0ULL + tm * 1e6
 end
 
+function utils.shape_cmd(tube_name, cmd)
+    return string.format('queue.tube.%s:%s', tube_name, cmd)
+end
+
 return utils

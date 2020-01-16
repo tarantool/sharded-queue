@@ -5,14 +5,9 @@ local config = require('test.helper.config')
 local utils = require('test.helper.utils')
 local fiber = require('fiber')
 
-
-g.before_all = function()
+g.before_all(function()
     g.queue_conn = config.cluster:server('queue-router').net_box
-end
-
-local function shape_cmd(tube_name, cmd)
-    return string.format('queue.tube.%s:%s', tube_name, cmd)
-end
+end)
 
 function g.test_statistics()
     local tube_name = 'statistics_test'
@@ -28,7 +23,7 @@ function g.test_statistics()
 
     for i = 1, task_count do
         table.insert(task_pack,
-            g.queue_conn:call(shape_cmd(tube_name, 'put'), {
+            g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), {
             i, { delay = 3 , ttl = 3, ttr = 1}
         })[utils.index.task_id])
 
@@ -58,7 +53,7 @@ function g.test_statistics()
     for _ = 1, taken_task_count do
         table.insert(taken_task_pack,
             g.queue_conn:call(
-                shape_cmd(tube_name, 'take'),
+                utils.shape_cmd(tube_name, 'take'),
                 { 0.001 }
             )[utils.index.task_id])
     end
@@ -72,7 +67,7 @@ function g.test_statistics()
     -- done few task with ack
     local done_task_count = 10
     for i = 1, done_task_count do
-        g.queue_conn:call(shape_cmd(tube_name, 'ack'), { taken_task_pack[i] })
+        g.queue_conn:call(utils.shape_cmd(tube_name, 'ack'), { taken_task_pack[i] })
     end
 
     -- after ack
