@@ -7,9 +7,9 @@ local api = require('sharded_queue.api')
 local config = require('test.helper.config')
 local utils = require('test.helper.utils')
 
-g.before_all = function()
+g.before_all(function()
     g.queue_conn = config.cluster:server('queue-router').net_box
-end
+end)
 
 g.test_exported_api = function()
     for method, _ in pairs(api.__private.sharded_tube) do
