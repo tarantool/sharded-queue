@@ -57,13 +57,11 @@ for test_name, options in pairs({
         end
         -- compare
         local stat = g.queue_conn:call('queue.statistics', { tube_name })
-        if stat ~= nil then
-            t.assert_equals(stat.tasks.ready, 0)
-            t.assert_equals(stat.tasks.taken, task_count)
+        t.assert_equals(stat.tasks.ready, 0)
+        t.assert_equals(stat.tasks.taken, task_count)
 
-            t.assert_equals(stat.calls.put, task_count)
-            t.assert_equals(stat.calls.take, task_count)
-        end
+        t.assert_equals(stat.calls.put, task_count)
+        t.assert_equals(stat.calls.take, task_count)
 
         for task_id, _ in pairs(task_ids) do
             g.queue_conn:call(utils.shape_cmd(tube_name, 'ack'), {task_id})

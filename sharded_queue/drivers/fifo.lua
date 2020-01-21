@@ -1,6 +1,11 @@
 local state = require('sharded_queue.state')
 local utils = require('sharded_queue.utils')
 local log = require('log') -- luacheck: ignore
+local statistics = require('sharded_queue.statistics')
+
+local function update_stat(tube_name, name)
+    statistics.update(tube_name, name, '+', 1)
+end
 
 local method = {}
 
@@ -46,7 +51,6 @@ local function tube_create(opts)
 end
 
 local function tube_drop(tube_name)
-    box.space._stat:delete(tube_name)
     box.space[tube_name]:drop()
 end
 
@@ -73,6 +77,7 @@ function method.put(args)
     local idx = get_index(args)
     local task_id = utils.pack_task_id(args.bucket_id, args.bucket_count, idx)
     local task = get_space(args):insert { task_id, args.bucket_id, state.READY, args.data, idx }
+    update_stat(args.tube_name, 'put')
     return normalize_task(task)
 end
 
@@ -81,6 +86,7 @@ function method.take(args)
     local task = get_space(args).index.status:min { state.READY }
     if task ~= nil and task[3] == state.READY then
         task = get_space(args):update(task.task_id, { { '=', 3, state.TAKEN } })
+        update_stat(args.tube_name, 'take')
         return normalize_task(task)
     end
 end
@@ -91,6 +97,8 @@ function method.ack(args)
     if task ~= nil then
         task = task:tomap()
         task.status = state.DONE
+        update_stat(args.tube_name, 'ack')
+        update_stat(args.tube_name, 'done')
     end
 
     return normalize_task(task)
@@ -108,6 +116,8 @@ function method.delete(args)
     if task ~= nil then
         task = task:tomap()
         task.status = state.DONE
+        update_stat(args.tube_name, 'delete')
+        update_stat(args.tube_name, 'done')
     end
     return normalize_task(task)
 end
@@ -115,12 +125,14 @@ end
 -- release task
 function method.release(args)
     local task = get_space(args):update(args.task_id, { { '=', 3, state.READY } })
+    update_stat(args.tube_name, 'release')
     return normalize_task(task)
 end
 
 -- bury task
 function method.bury(args)
     local task = get_space(args):update(args.task_id, { { '=', 3, state.BURIED } })
+    update_stat(args.tube_name, 'bury')
     return normalize_task(task)
 end
 
@@ -136,6 +148,7 @@ function method.kick(args)
         end
 
         task = get_space(args):update(task[1], { { '=', 3, state.READY } })
+        update_stat(args.tube_name, 'kick')
     end
     return args.count
 end
@@ -143,10 +156,6 @@ end
 -- peek task
 function method.peek(args)
     return normalize_task(get_space(args):get { args.task_id })
-end
-
-function method.truncate(self)
-    self.space:truncate()
 end
 
 return {
