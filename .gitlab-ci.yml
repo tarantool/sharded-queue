@@ -21,11 +21,9 @@ build:
    - wget https://tarantool:${DOWNLOAD_TOKEN}@download.tarantool.io/enterprise/tarantool-enterprise-bundle-${BUNDLE_VERSION}.tar.gz
    - tar -zxf tarantool-enterprise-bundle-${BUNDLE_VERSION}.tar.gz --strip 1
    - source env.sh
-   - tarantoolctl rocks install luacheck
-   - tarantoolctl rocks install luatest 0.4.0
   script:
    - make build
-   - make lint
+   - make bootstrap
    - make test
    - ./release.sh
 

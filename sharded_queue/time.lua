@@ -24,17 +24,6 @@ function time.nano(tm)
     return 0ULL + tm * 1e6
 end
 
-function time.time(tm)
-    if tm == nil then
-        tm = fiber.time64()
-    elseif tm < 0 then
-        tm = 0
-    else
-        tm = tm * 1e6
-    end
-    return 0ULL + tm
-end
-
 function time.event(tm)
     if tm == nil or tm < 0 then
         tm = 0
