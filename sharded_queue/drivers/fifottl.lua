@@ -1,6 +1,7 @@
 local fiber = require('fiber')
 local state = require('sharded_queue.state')
 local utils = require('sharded_queue.utils')
+local statistics = require('sharded_queue.statistics')
 local time  = require('sharded_queue.time')
 local log = require('log') -- luacheck: ignore
 
@@ -17,29 +18,8 @@ local index = {
     index      = 10
 }
 
-local stat_pos = {
-    status = {
-        done = 2
-    },
-    call = {
-        take = 3,
-        kick = 4,
-        bury = 5,
-        put  = 6,
-        delete = 7,
-        touch  = 8,
-        ack    = 9,
-        release = 10
-    },
-    options = {
-        ttl = 11,
-        ttr = 12,
-        priority = 13
-    }
-}
-
-local function update_stat(tube_name, class, name)
-    box.space._stat:update(tube_name, { {'+', stat_pos[class][name], 1} })
+local function update_stat(tube_name, name)
+    statistics.update(tube_name, name, '+', 1)
 end
 
 local function is_expired(task)
@@ -76,7 +56,8 @@ local function fiber_iteration(tube_name, processed)
         if task ~= nil and task[index.status] == s then
             if cur >= task[index.next_event] then
                 box.space[tube_name]:delete(task[index.task_id])
-                update_stat(tube_name, 'status', 'done')
+                update_stat(tube_name, 'delete')
+                update_stat(tube_name, 'done')
                 estimated = 0
                 processed = processed + 1
             else
@@ -208,22 +189,12 @@ local function tube_create(args)
         unique = false,
         if_not_exists = if_not_exists
     })
-    -- create stat record about new tube
-    local ttl = args.options.ttl or time.MAX_TIMEOUT
-    local ttr = args.options.ttr or ttl
-    local priority = args.options.priority or 0
 
-    if not box.space._stat:get(args.name) then
-        box.space._stat:insert {
-            args.name, 0, 0, 0, 0, 0, 0, 0, 0, 0, ttl, ttr, priority
-        }
-    end
     -- run fiber for tracking event
     fiber.create(fiber_common, args.name)
 end
 
 local function tube_drop(tube_name)
-    box.space._stat:delete(tube_name)
     box.space[tube_name]:drop()
 end
 
@@ -243,45 +214,13 @@ end
 
 local method = {}
 
-function method.statistic(args)
-    --
-    if not box.space[args.tube_name] then
-        return nil
-    end
-    --
-    local stat = {
-        tasks = {},
-        calls = {}
-    }
-    -- collecting tasks count
-    local total = 0
-    for name, value in pairs(state) do
-        local count = box.space[args.tube_name].index.status:count(value)
-        stat.tasks[name:lower()] = count
-        total = total + count
-    end
-    stat.tasks.total = total
-
-    local stored_stat = box.space._stat:get(args.tube_name)
-
-    stat.tasks.done = stored_stat[stat_pos.status.done]
-    -- collect calls count
-    for call_name, call_index in pairs(stat_pos.call) do
-        stat.calls[call_name] = stored_stat[call_index]
-    end
-
-    return stat
-end
-
-
 function method.put(args)
     local delay = args.delay or 0
     -- setup params --
-    local stat = box.space._stat:get(args.tube_name)
 
-    local ttl = args.ttl or stat[stat_pos.options.ttl]
-    local ttr = args.ttr or stat[stat_pos.options.ttr]
-    local priority = args.priority or stat[stat_pos.options.priority]
+    local ttl = args.ttl or args.options.ttl or time.MAX_TIMEOUT
+    local ttr = args.ttr or args.options.ttr or ttl
+    local priority = args.priority or args.options.priority or 0
 
     local idx = get_index(args.tube_name, args.bucket_id)
 
@@ -313,7 +252,7 @@ function method.put(args)
         idx                     -- index
     }
 
-    update_stat(args.tube_name, 'call', 'put')
+    update_stat(args.tube_name, 'put')
     fibers_info[args.tube_name].cond:signal()
     return normalize_task(task)
 end
@@ -321,17 +260,14 @@ end
 function method.take(args)
     local task = nil
     for _, tuple in
-        box.space[args.tube_name].index.status:pairs(nil, {state.READY} ) do
-        if tuple ~= nil and tuple[index.status] == state.READY then
-            --
+        box.space[args.tube_name].index.status:pairs( {state.READY} ) do
+        if not is_expired(tuple) then
             task = tuple
             break
         end
     end
 
-    if task == nil or is_expired(task) then
-        return
-    end
+    if task == nil then return end
 
     local next_event = time.cur() + task[index.ttr]
     local dead_event = task[index.created] + task[index.ttl]
@@ -345,7 +281,7 @@ function method.take(args)
         { '=', index.next_event, next_event  }
     })
 
-    update_stat(args.tube_name, 'call', 'take')
+    update_stat(args.tube_name, 'take')
     fibers_info[args.tube_name].cond:signal()
     return normalize_task(task)
 end
@@ -360,7 +296,8 @@ function method.delete(args)
         task.status = state.DONE
     end
 
-    update_stat(args.tube_name, 'call', 'delete')
+    update_stat(args.tube_name, 'delete')
+    update_stat(args.tube_name, 'done')
     fibers_info[args.tube_name].cond:signal()
     return normalize_task(task)
 end
@@ -377,7 +314,7 @@ function method.touch(args)
             { op, index.ttr,        args.delta }
         })
 
-    update_stat(args.tube_name, 'call', 'touch')
+    update_stat(args.tube_name, 'touch')
     fibers_info[args.tube_name].cond:signal()
     return normalize_task(task)
 end
@@ -392,8 +329,8 @@ function method.ack(args)
         task.status = state.DONE
     end
 
-    update_stat(args.tube_name, 'call', 'ack')
-    update_stat(args.tube_name, 'status', 'done')
+    update_stat(args.tube_name, 'ack')
+    update_stat(args.tube_name, 'done')
     fibers_info[args.tube_name].cond:signal()
     return normalize_task(task)
 end
@@ -405,13 +342,13 @@ end
 function method.release(args)
     local task = box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.READY} })
 
-    update_stat(args.tube_name, 'call', 'release')
+    update_stat(args.tube_name, 'release')
     fibers_info[args.tube_name].cond:signal()
     return normalize_task(task)
 end
 
 function method.bury(args)
-    update_stat(args.tube_name, 'call', 'bury')
+    update_stat(args.tube_name, 'bury')
     fibers_info[args.tube_name].cond:signal()
     return normalize_task(box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.BURIED} }))
 end
@@ -429,7 +366,7 @@ function method.kick(args)
         end
 
         box.space[args.tube_name]:update(task[index.task_id], { {'=', index.status, state.READY} })
-        update_stat(args.tube_name, 'call', 'kick')
+        update_stat(args.tube_name, 'kick')
     end
     return args.count
 end

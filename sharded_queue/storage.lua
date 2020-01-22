@@ -1,6 +1,11 @@
 local log = require('log')
 local json = require('json')
 
+local cartridge = require('cartridge')
+
+local state = require('sharded_queue.state')
+local statistics = require('sharded_queue.statistics')
+
 local DEFAULT_DRIVER = 'sharded_queue.drivers.fifottl'
 
 local queue_drivers = {}
@@ -53,6 +58,7 @@ local function apply_config(cfg, opts)
                     name = tube_name,
                     options = cfg_tubes[tube_name]
                 })
+                statistics.reset(tube_name)
             end
         end
 
@@ -81,36 +87,14 @@ local methods = {
 
 local function init(opts)
     if opts.is_master then
-        local space_stat = box.schema.space.create('_stat', {
-            format = {
-                { 'tube_name', 'string' },
-                -- statistic ---------------
-                { 'done', 'unsigned' },
-                { 'take', 'unsigned' },
-                { 'kick', 'unsigned' },
-                { 'bury', 'unsigned' },
-                { 'put', 'unsigned' },
-                { 'delete', 'unsigned' },
-                { 'touch', 'unsigned' },
-                { 'ack', 'unsigned' },
-                { 'release', 'unsigned' },
-                -- default options ---------
-                { 'ttl', 'unsigned' },
-                { 'ttr', 'unsigned' },
-                { 'priority', 'unsigned' }
-            },
-            if_not_exists = true
-        })
+        statistics.init()
 
-        space_stat:create_index('primary', {
-            type = 'HASH',
-            parts = {
-                1, 'string'
-            },
-            if_not_exists = true
-        })
         for _, name in pairs(methods) do
             local func = function(args)
+                if args == nil then args = {} end
+                local cfg_tubes = cartridge.config_get_readonly('tubes') or {}
+                args.options = cfg_tubes[args.tube_name] or {}
+
                 local tube_name = args.tube_name
                 if tubes[tube_name].method[name] == nil then error(('Method %s not implemented in tube %s'):format(name, tube_name)) end
                 return tubes[tube_name].method[name](args)
@@ -120,6 +104,13 @@ local function init(opts)
             rawset(_G, global_name, func)
             box.schema.func.create(global_name, { if_not_exists = true })
         end
+
+        local tube_statistic_func = function(args)
+            return statistics.get(args.tube_name)
+        end
+
+        rawset(_G, 'tube_statistic', tube_statistic_func)
+        box.schema.func.create('tube_statistic', { if_not_exists = true })
     end
 end
 

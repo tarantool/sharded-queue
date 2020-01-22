@@ -9,6 +9,37 @@ g.before_all(function()
     g.queue_conn = config.cluster:server('queue-router').net_box
 end)
 
+local function lookup_task(task_id, tube_name, cluster)
+    local call_string = ("return box.space.%s:get(%s):tomap({names_only=true})"):format(tube_name, task_id)
+    local ok, stored_task
+    for _, server in pairs(cluster.servers) do
+        ok, stored_task = pcall(function()
+            return server.net_box:eval(call_string)
+        end)
+        if ok then break end
+    end
+    return stored_task
+end
+
+function g.test_fifottl_config()
+    local tube_name = 'test_fifottl_config'
+    local tube_options = { ttl = 43, ttr = 15, priority = 17 }
+    g.queue_conn:call('queue.create_tube', {
+        tube_name,
+        tube_options
+    })
+
+    local task_id = g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), {
+        'simple data',
+    })[1]
+
+    local stored_task = lookup_task(task_id, tube_name, config.cluster)
+
+    t.assert_equals(stored_task.ttl, tube_options.ttl * 1000000)
+    t.assert_equals(stored_task.ttr, tube_options.ttr * 1000000)
+    t.assert_equals(stored_task.priority, tube_options.priority)
+end
+
 function g.test_touch_task()
     local tube_name = 'touch_task_test'
     g.queue_conn:call('queue.create_tube', {
@@ -37,8 +68,10 @@ function g.test_touch_task()
 
     peek_task = g.queue_conn:call(utils.shape_cmd(tube_name, 'peek'), { task[utils.index.task_id] })
     t.assert_equals(peek_task[utils.index.status], utils.state.TAKEN)
-end
 
+    local cur_stat = g.queue_conn:call('queue.statistics', { tube_name })
+    t.assert_equals(cur_stat.calls.touch, 1)
+end
 
 function g.test_delayed_tasks()
     local tube_name = 'delayed_tasks_test'
