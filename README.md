@@ -66,6 +66,7 @@ tubes:
 Install dependencies:
 
 ```
+make bootstrap
 tarantoolctl rocks make
 ```
 
@@ -85,8 +86,7 @@ To stop and clear data, say:
 Say:
 
 ```
-tarantoolctl rocks install luatest
-.rocks/bin/luatest -v
+make test
 ```
 
 ## API extensions (compared to tarantool/queue)
