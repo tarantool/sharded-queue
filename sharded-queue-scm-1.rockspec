@@ -28,7 +28,7 @@ build = {
             ['sharded_queue.time'] = 'sharded_queue/time.lua',
             ['sharded_queue.utils'] = 'sharded_queue/utils.lua',
             ['sharded_queue.state'] = 'sharded_queue/state.lua',
-            ['sharded_queue.statisctics'] = 'sharded_queue/statistics.lua',
+            ['sharded_queue.statistics'] = 'sharded_queue/statistics.lua',
         },
     },
     build_variables = {
