@@ -26,7 +26,19 @@ local function is_expired(task)
     return (task[index.created] + task[index.ttl]) <= time.cur()
 end
 
-local fibers_info = {}
+local wait_cond_map = {}
+
+local function wc_signal(tube_name)
+    if wait_cond_map[tube_name] ~= nil then
+        wait_cond_map[tube_name]:signal()
+    end
+end
+
+local function wc_wait(tube_name, time)
+    if wait_cond_map[tube_name] ~= nil then
+        wait_cond_map[tube_name]:wait(time)
+    end
+end
 
 -- FIBERS METHODS --
 local function fiber_iteration(tube_name, processed)
@@ -86,14 +98,7 @@ local function fiber_iteration(tube_name, processed)
 
     if estimated > 0 or processed > 1000 then
         estimated = estimated > 0 and estimated or 0
-
-        local cond = fiber.cond()
-
-        fibers_info[tube_name] = {
-            cond = cond
-        }
-
-        cond:wait(estimated)
+        wc_wait(tube_name, estimated)
     end
 
     return processed
@@ -101,14 +106,14 @@ end
 
 local function fiber_common(tube_name)
     fiber.name(tube_name)
+    wait_cond_map[tube_name] = fiber.cond()
 
     local processed = 0
 
     while true do
         if not box.cfg.read_only then
             local ok, ret = pcall(fiber_iteration, tube_name, processed)
-
-            if not ok and not ret.code == box.error.READONLY then
+            if not ok and not (ret.code == box.error.READONLY) then
                 return 1
             elseif ok then
                 processed = ret
@@ -253,7 +258,7 @@ function method.put(args)
     }
 
     update_stat(args.tube_name, 'put')
-    fibers_info[args.tube_name].cond:signal()
+    wc_signal(args.tube_name)
     return normalize_task(task)
 end
 
@@ -282,7 +287,7 @@ function method.take(args)
     })
 
     update_stat(args.tube_name, 'take')
-    fibers_info[args.tube_name].cond:signal()
+    wc_signal(args.tube_name)
     return normalize_task(task)
 end
 
@@ -298,7 +303,7 @@ function method.delete(args)
 
     update_stat(args.tube_name, 'delete')
     update_stat(args.tube_name, 'done')
-    fibers_info[args.tube_name].cond:signal()
+    wc_signal(args.tube_name)
     return normalize_task(task)
 end
 
@@ -315,7 +320,7 @@ function method.touch(args)
         })
 
     update_stat(args.tube_name, 'touch')
-    fibers_info[args.tube_name].cond:signal()
+    wc_signal(args.tube_name)
     return normalize_task(task)
 end
 
@@ -331,7 +336,7 @@ function method.ack(args)
 
     update_stat(args.tube_name, 'ack')
     update_stat(args.tube_name, 'done')
-    fibers_info[args.tube_name].cond:signal()
+    wc_signal(args.tube_name)
     return normalize_task(task)
 end
 
@@ -343,13 +348,13 @@ function method.release(args)
     local task = box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.READY} })
 
     update_stat(args.tube_name, 'release')
-    fibers_info[args.tube_name].cond:signal()
+    wc_signal(args.tube_name)
     return normalize_task(task)
 end
 
 function method.bury(args)
     update_stat(args.tube_name, 'bury')
-    fibers_info[args.tube_name].cond:signal()
+    wc_signal(args.tube_name)
     return normalize_task(box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.BURIED} }))
 end
 
