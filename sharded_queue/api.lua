@@ -92,11 +92,7 @@ function sharded_tube.take(self, timeout, options)
     end
     options.tube_name = self.tube_name
 
-    local wait_factor = 1
-    if options.wait_factor and options.wait_factor > 1 then
-        wait_factor = options.wait_factor
-    end
-
+    local wait_factor = self.wait_factor
 
     local remote_call_timeout = time.MIN_NET_BOX_CALL_TIMEOUT
     if timeout ~= nil and timeout > time.MIN_NET_BOX_CALL_TIMEOUT then
@@ -127,7 +123,7 @@ function sharded_tube.take(self, timeout, options)
 
         if task ~= nil then return task end
 
-        if take_timeout < wait_part * 1e6 then
+        if take_timeout < time.nano(wait_part) then
             take_timeout = 0
         else
             fiber.sleep(wait_part)
@@ -356,10 +352,11 @@ local function apply_config(cfg, opts)
         local cfg_tubes = cfg.tubes or {}
 
         -- try init tubes --
-        for tube_name, _ in pairs(cfg_tubes) do
+        for tube_name, options in pairs(cfg_tubes) do
             if sharded_queue.tube[tube_name] == nil then
                 local self = setmetatable({
                     tube_name = tube_name,
+                    wait_factor = options.wait_factor or time.DEFAULT_WAIT_FACTOR,
                 }, {
                     __index = sharded_tube
                 })

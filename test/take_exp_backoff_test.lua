@@ -15,10 +15,10 @@ g.before_all(function()
     g.queue_conn = config.cluster:server('queue-router').net_box
 end)
 
-local function task_take(tube_name, timeout, options, channel)
+local function task_take(tube_name, timeout, channel)
     -- fiber function for take task with timeout and calc duration time
     local start = fiber.time64()
-    local task = g.queue_conn:call(utils.shape_cmd(tube_name, 'take'), { timeout, options })
+    local task = g.queue_conn:call(utils.shape_cmd(tube_name, 'take'), { timeout })
     local duration = fiber.time64() - start
 
     channel:put(duration)
@@ -26,24 +26,28 @@ local function task_take(tube_name, timeout, options, channel)
 end
 --
 
-function g.test_wait_put_taking()
+function g.test_default_timeout()
     local tube_name = 'test_default_wait_factor'
     g.queue_conn:call('queue.create_tube', {
         tube_name
     })
 
     local timeout = 3 -- second
+    local attemts = 7 -- attempts count
+    local put_wait = 0.01*(math.pow(2, attemts) - 1)   -- 1.27
+    local take_time_expected = 0.01*(math.pow(2, attemts+1) - 1) -- 2.55
 
     local channel = fiber.channel(2)
-    fiber.create(task_take, tube_name, timeout, {}, channel)
+    fiber.create(task_take, tube_name, timeout, channel)
 
-    fiber.sleep(timeout / 2)
-    t.assert(g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), { 'simple_task' }, {timeout=1}))
+    fiber.sleep(put_wait + 0.2)
+
+    t.assert(g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), { 'simple_task' }, {timeout=0.5}))
 
     local waiting_time = tonumber(channel:get()) / 1e6
     local task = channel:get()
 
-    t.assert_almost_equals(waiting_time, timeout / 2, 0.1)
+    t.assert_almost_equals(waiting_time, take_time_expected, 0.1)
     t.assert_equals(task[utils.index.data], 'simple_task')
 
     channel:close()
@@ -62,13 +66,16 @@ function g.test_success()
 
     local tube_name = 'test_success_exp_backoff'
     g.queue_conn:call('queue.create_tube', {
-        tube_name
+        tube_name,
+        {
+            wait_factor = 5,
+        }
     })
 
     local timeout = 7
 
     local channel = fiber.channel(2)
-    fiber.create(task_take, tube_name, timeout, { wait_factor = 5 }, channel)
+    fiber.create(task_take, tube_name, timeout, channel)
 
     fiber.sleep(1)
     t.assert(g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), { 'simple_task' }, {timeout=1}))
@@ -94,13 +101,16 @@ function g.test_timeout()
 
     local tube_name = 'test_timeout_exp_backoff'
     g.queue_conn:call('queue.create_tube', {
-        tube_name
+        tube_name,
+        {
+            wait_factor = 5,
+        }
     })
 
     local timeout = 7
 
     local channel = fiber.channel(2)
-    fiber.create(task_take, tube_name, timeout, { wait_factor = 5 }, channel)
+    fiber.create(task_take, tube_name, timeout, channel)
 
     fiber.sleep(timeout)
 

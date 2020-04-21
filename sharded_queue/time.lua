@@ -5,6 +5,7 @@ local time = {}
 time.MAX_TIMEOUT      = 365 * 86400 * 100       -- MAX_TIMEOUT == 100 years
 time.TIMEOUT_INFINITY = 18446744073709551615ULL -- Set to TIMEOUT_INFINITY
 time.MIN_NET_BOX_CALL_TIMEOUT = 1               -- MIN_NET_BOX_CALL_TIMEOUT == 1 second
+time.DEFAULT_WAIT_FACTOR = 2
 
 function time.sec(tm)
     if tm == nil then
