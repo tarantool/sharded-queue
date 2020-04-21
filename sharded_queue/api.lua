@@ -92,6 +92,12 @@ function sharded_tube.take(self, timeout, options)
     end
     options.tube_name = self.tube_name
 
+    local wait_factor = 1
+    if options.wait_factor and options.wait_factor > 1 then
+        wait_factor = options.wait_factor
+    end
+
+
     local remote_call_timeout = time.MIN_NET_BOX_CALL_TIMEOUT
     if timeout ~= nil and timeout > time.MIN_NET_BOX_CALL_TIMEOUT then
         remote_call_timeout = timeout
@@ -121,11 +127,16 @@ function sharded_tube.take(self, timeout, options)
 
         if task ~= nil then return task end
 
-        fiber.sleep(wait_part)
+        if take_timeout < wait_part * 1e6 then
+            take_timeout = 0
+        else
+            fiber.sleep(wait_part)
+            wait_part = wait_part * wait_factor
+        end
 
         local duration = time.cur() - begin
 
-        take_timeout = take_timeout > duration and take_timeout -  duration or 0
+        take_timeout = take_timeout > duration and take_timeout - duration or 0
     end
 end
 
