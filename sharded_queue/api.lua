@@ -41,6 +41,20 @@ local map = function(method, args, uri_list)
     return true, map_data
 end
 
+local function validate_options(options)
+    if not options then return true end
+
+    if options.wait_factor then
+        if type(options.wait_factor) ~= 'number'
+            or options.wait_factor < 1
+        then
+            return false, "wait_factor must be number greater than or equal to 1"
+        end
+    end
+
+    return true
+end
+
 local sharded_tube = {}
 
 function sharded_tube.put(self, data, options)
@@ -334,8 +348,11 @@ function sharded_queue.create_tube(tube_name, options)
         return nil
     end
 
+    local ok , err = validate_options(options)
+    if not ok then error(err) end
+
     tubes[tube_name] = options or {}
-    local ok, err = cartridge.config_patch_clusterwide({ tubes = tubes })
+    ok, err = cartridge.config_patch_clusterwide({ tubes = tubes })
     if not ok then error(err) end
 
     return sharded_queue.tube[tube_name]

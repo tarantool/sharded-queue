@@ -89,36 +89,23 @@ function g.test_success()
     channel:close()
 end
 
-function g.test_timeout()
-    -- start taking
-    -- 0.00 : take fail => wait 0.01 (see wait_part in api.lua)
-    -- 0.01 : take fail => wait 0.05
-    -- 0.06 : take fail => wait 0.25
-    -- 0.31 : take fail => wait 1.25
-    -- 1.56 : take fail => wait 6.25 (next try shoud be after 7.81)
-    -- 7.00 : timeout
+function g.test_invalid_factors()
 
+    local tube_name = 'test_tinvalid_factors'
 
-    local tube_name = 'test_timeout_exp_backoff'
-    g.queue_conn:call('queue.create_tube', {
-        tube_name,
-        {
-            wait_factor = 5,
+    t.assert_error_msg_contains('wait_factor', g.queue_conn.call,
+        g.queue_conn,
+        'queue.create_tube',
+        { tube_name, {
+            wait_factor = 0.5,
         }
     })
 
-    local timeout = 7
-
-    local channel = fiber.channel(2)
-    fiber.create(task_take, tube_name, timeout, channel)
-
-    fiber.sleep(timeout)
-
-    local waiting_time = tonumber(channel:get()) / 1e6
-    local task = channel:get()
-
-    t.assert_almost_equals(waiting_time, 1.56, 0.1)
-    t.assert_equals(task, nil)
-
-    channel:close()
+    t.assert_error_msg_contains('wait_factor', g.queue_conn.call,
+        g.queue_conn,
+        'queue.create_tube',
+        { tube_name, {
+            wait_factor = 'not factor',
+        }
+    })
 end
