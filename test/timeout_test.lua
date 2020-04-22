@@ -30,8 +30,6 @@ function g.test_try_waiting()
     -- TAKE task with timeout
     -- CHECK uptime and value - nil
 
-    t.skip_if(true, "See 'g.test_timeout' in test/take_exp_backoff.lua")
-
     local tube_name = 'try_waiting_test'
     g.queue_conn:call('queue.create_tube', {
         tube_name
@@ -47,7 +45,7 @@ function g.test_try_waiting()
     local waiting_time = tonumber(channel:get()) / 1e6
     local task = channel:get()
 
-    t.assert_almost_equals(waiting_time, 3, 0.1)
+    t.assert(waiting_time <= 3)
     t.assert_equals(task, nil)
 
     channel:close()
@@ -60,11 +58,12 @@ function g.test_wait_put_taking()
     -- PUT task to tube
     -- CHEK what was taken successfully
 
-    t.skip_if(true, "See 'g.test_default_timeout' in test/take_exp_backoff.lua")
-
     local tube_name = 'wait_put_taking_test'
     g.queue_conn:call('queue.create_tube', {
-        tube_name
+        tube_name,
+        {
+            wait_factor = 1,
+        }
     })
 
     local timeout = 3

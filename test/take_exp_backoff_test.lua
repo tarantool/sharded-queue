@@ -26,7 +26,7 @@ local function task_take(tube_name, timeout, channel)
 end
 --
 
-function g.test_default_timeout()
+function g.test_default_wait_factor()
     local tube_name = 'test_default_wait_factor'
     g.queue_conn:call('queue.create_tube', {
         tube_name
@@ -118,7 +118,6 @@ function g.test_timeout()
     local task = channel:get()
 
     t.assert_almost_equals(waiting_time, 1.56, 0.1)
-    -- t.assert_almost_equals(waiting_time, 7, 0.1)
     t.assert_equals(task, nil)
 
     channel:close()
