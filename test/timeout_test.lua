@@ -32,7 +32,10 @@ function g.test_try_waiting()
 
     local tube_name = 'try_waiting_test'
     g.queue_conn:call('queue.create_tube', {
-        tube_name
+        tube_name,
+        {
+            wait_factor = 1,
+        }
     })
 
     local timeout = 3 -- second
@@ -45,7 +48,7 @@ function g.test_try_waiting()
     local waiting_time = tonumber(channel:get()) / 1e6
     local task = channel:get()
 
-    t.assert(waiting_time <= 3)
+    t.assert_almost_equals(waiting_time, 3, 0.1)
     t.assert_equals(task, nil)
 
     channel:close()
