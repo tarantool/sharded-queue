@@ -98,8 +98,12 @@ function g.test_delayed_tasks()
     t.assert_equals(peek_task[utils.index.status], utils.state.DELAYED)
     t.assert_equals(g.queue_conn:call(utils.shape_cmd(tube_name, 'take'), { 0.001 }), nil)
 
+    -- delayed task was not taken
+    fiber.sleep(0.5)
+    t.assert_equals(g.queue_conn:call(utils.shape_cmd(tube_name, 'take'), { 0.01 }), nil)
+
     -- delayed task was taken after timeout
-    local taken_task = g.queue_conn:call(utils.shape_cmd(tube_name, 'take'), { 1.1 })
+    local taken_task = g.queue_conn:call(utils.shape_cmd(tube_name, 'take'), { 0.5 })
     t.assert_equals(taken_task[utils.index.data], 'simple data')
 
     peek_task = g.queue_conn:call(utils.shape_cmd(tube_name, 'peek'), {

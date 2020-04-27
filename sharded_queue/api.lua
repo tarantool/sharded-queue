@@ -138,7 +138,7 @@ function sharded_tube.take(self, timeout, options)
         if task ~= nil then return task end
 
         if take_timeout < time.nano(wait_part) then
-            take_timeout = 0
+            return nil
         else
             fiber.sleep(wait_part)
             wait_part = wait_part * wait_factor
