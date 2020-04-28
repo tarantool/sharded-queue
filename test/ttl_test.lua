@@ -23,7 +23,7 @@ end
 
 function g.test_fifottl_config()
     local tube_name = 'test_fifottl_config'
-    local tube_options = { ttl = 43, ttr = 15, priority = 17 }
+    local tube_options = { ttl = 43, ttr = 15, priority = 17, wait_factor = 1 }
     g.queue_conn:call('queue.create_tube', {
         tube_name,
         tube_options
@@ -43,7 +43,10 @@ end
 function g.test_touch_task()
     local tube_name = 'touch_task_test'
     g.queue_conn:call('queue.create_tube', {
-        tube_name
+        tube_name,
+        {
+            wait_factor = 1,
+        }
     })
 
     local task = g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), {
@@ -76,7 +79,10 @@ end
 function g.test_delayed_tasks()
     local tube_name = 'delayed_tasks_test'
     g.queue_conn:call('queue.create_tube', {
-        tube_name
+        tube_name,
+        {
+            wait_factor = 1,
+        }
     })
     -- task delayed for 0.1 sec
     local task = g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), {
@@ -92,8 +98,12 @@ function g.test_delayed_tasks()
     t.assert_equals(peek_task[utils.index.status], utils.state.DELAYED)
     t.assert_equals(g.queue_conn:call(utils.shape_cmd(tube_name, 'take'), { 0.001 }), nil)
 
+    -- delayed task was not taken
+    fiber.sleep(0.5)
+    t.assert_equals(g.queue_conn:call(utils.shape_cmd(tube_name, 'take'), { 0.01 }), nil)
+
     -- delayed task was taken after timeout
-    local taken_task = g.queue_conn:call(utils.shape_cmd(tube_name, 'take'), { 1 })
+    local taken_task = g.queue_conn:call(utils.shape_cmd(tube_name, 'take'), { 0.5 })
     t.assert_equals(taken_task[utils.index.data], 'simple data')
 
     peek_task = g.queue_conn:call(utils.shape_cmd(tube_name, 'peek'), {
