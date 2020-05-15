@@ -14,33 +14,6 @@ local remote_call = function(method, instance_uri, args, timeout)
     return conn:call(method, { args }, { timeout = timeout })
 end
 
-local map = function(method, args, uri_list)
-    local fibers_data = {}
-
-    for _, uri in ipairs(uri_list) do
-        local fiber_obj = fiber.new(
-            remote_call, method, uri, args)
-
-        fiber_obj:name('netbox_map')
-        fiber_obj:set_joinable(true)
-        fibers_data[uri] = fiber_obj
-    end
-
-    local map_data = {}
-
-    for _, fiber_obj in pairs(fibers_data) do
-        local ok, ret = fiber_obj:join()
-
-        if not ok or ret == nil then
-            return false, ret
-        end
-
-        table.insert(map_data, ret)
-    end
-
-    return true, map_data
-end
-
 local function validate_options(options)
     if not options then return true end
 
@@ -319,24 +292,32 @@ function sharded_queue.statistics(tube_name)
             leader_only = true
         })
 
-    local ok, stats_collection = map('tube_statistic',
-        { tube_name = tube_name }, storages)
+    local stats_collection, err = cartridge_pool.map_call('tube_statistic',
+        {{ tube_name = tube_name }}, {uri_list=storages})
 
-    if not ok or stats_collection == nil then
-        log.info(stats_collection)
-        return
+    if err ~= nil then
+        return nil, err
     end
+
+    if type(stats_collection) ~= 'table' then
+        return nil, 'No stats retrieved'
+    end
+
+    if next(stats_collection) == nil then
+        return nil
+    end
+
     -- merge
-    local stat = stats_collection[1]
-    for i = 2, #stats_collection do
-        for name, count in pairs(stats_collection[i].tasks) do
-            stat.tasks[name] = stat.tasks[name] + count
+    local stat = { tasks = {}, calls = {} }
+    for _, uri_stat in pairs(stats_collection) do
+        for name, count in pairs(uri_stat.tasks) do
+            stat.tasks[name] = (stat.tasks[name] or 0) + count
         end
-        for name, count in pairs(stats_collection[i].calls) do
-            stat.calls[name] = stat.calls[name] + count
+        for name, count in pairs(uri_stat.calls) do
+            stat.calls[name] = (stat.calls[name] or 0) + count
         end
     end
-    --
+
     return stat
 end
 
