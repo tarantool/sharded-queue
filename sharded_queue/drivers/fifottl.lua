@@ -227,35 +227,37 @@ function method.put(args)
     local ttr = args.ttr or args.options.ttr or ttl
     local priority = args.priority or args.options.priority or 0
 
-    local idx = get_index(args.tube_name, args.bucket_id)
+    local task = box.atomic(function()
+        local idx = get_index(args.tube_name, args.bucket_id)
 
-    local next_event
-    local task_id = utils.pack_task_id(
-        args.bucket_id,
-        args.bucket_count,
-        idx)
+        local next_event
+        local task_id = utils.pack_task_id(
+            args.bucket_id,
+            args.bucket_count,
+            idx)
 
-    local status = state.READY
-    if delay > 0 then
-        status = state.DELAYED
-        ttl = ttl + delay
-        next_event = time.event(delay)
-    else
-        next_event = time.event(ttl)
-    end
+        local status = state.READY
+        if delay > 0 then
+            status = state.DELAYED
+            ttl = ttl + delay
+            next_event = time.event(delay)
+        else
+            next_event = time.event(ttl)
+        end
 
-    local task = box.space[args.tube_name]:insert {
-        task_id,                -- task_id
-        args.bucket_id,         -- bucket_id
-        status,                 -- state
-        time.cur(),             -- created
-        priority,               -- priority
-        time.nano(ttl),         -- ttl
-        time.nano(ttr),         -- ttr
-        next_event,             -- next_event
-        args.data,              -- data
-        idx                     -- index
-    }
+        return box.space[args.tube_name]:insert {
+            task_id,                -- task_id
+            args.bucket_id,         -- bucket_id
+            status,                 -- state
+            time.cur(),             -- created
+            priority,               -- priority
+            time.nano(ttl),         -- ttl
+            time.nano(ttr),         -- ttr
+            next_event,             -- next_event
+            args.data,              -- data
+            idx                     -- index
+        }
+    end)
 
     update_stat(args.tube_name, 'put')
     wc_signal(args.tube_name)
