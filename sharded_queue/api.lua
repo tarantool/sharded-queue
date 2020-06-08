@@ -14,6 +14,16 @@ local remote_call = function(method, instance_uri, args, timeout)
     return conn:call(method, { args }, { timeout = timeout })
 end
 
+local function validate_wait_max(wait_max)
+    if wait_max ~= nil then
+        if type(wait_max) ~= 'number' or wait_max <= 0
+        then
+            return false
+        end
+    end
+    return true
+end
+
 local function validate_options(options)
     if not options then return true end
 
@@ -28,6 +38,10 @@ local function validate_options(options)
     local _, err = utils.normalize.log_request(options.log_request)
     if err then
         return false, err
+    end
+
+    if not validate_wait_max(options.wait_max) then
+        return false, "wait_max must be number greater than 0"
     end
 
     return true
@@ -114,6 +128,10 @@ function sharded_tube.take(self, timeout, options)
     local frequency = 1000
     local wait_part = 0.01 -- maximum waiting time in second
     local wait_max = options.wait_max or self.wait_max or time.MAX_TIMEOUT
+
+    if not validate_wait_max(wait_max) then
+        wait_max = time.MAX_TIMEOUT
+    end
 
     local calc_part = time.sec(take_timeout / frequency)
 

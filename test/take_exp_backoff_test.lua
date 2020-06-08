@@ -110,6 +110,74 @@ function g.test_invalid_factors()
     })
 end
 
+function g.test_invalid_wait_max()
+
+    local tube_name = 'test_invalid_wait_max'
+
+    t.assert_error_msg_contains('wait_max', g.queue_conn.call,
+        g.queue_conn,
+        'queue.create_tube',
+        { tube_name, {
+            wait_max = -8,
+        }
+    })
+
+    t.assert_error_msg_contains('wait_max', g.queue_conn.call,
+        g.queue_conn,
+        'queue.create_tube',
+        { tube_name, {
+            wait_max = 0,
+        }
+    })
+
+    t.assert_error_msg_contains('wait_max', g.queue_conn.call,
+        g.queue_conn,
+        'queue.create_tube',
+        { tube_name, {
+            wait_max = 'not number',
+        }
+    })
+end
+
+
+function g.test_invalid_wait_max_on_take()
+    -- start taking
+    -- 0.00 : take fail => wait 0.01 (see wait_part in api.lua)
+    -- 0.01 : take fail => wait 0.05
+    -- 0.06 : take fail => wait 0.25
+    -- 0.31 : take fail => wait 1.25
+    -- 0.35 : put task
+    -- 1.56 : take success
+    -- expected time is 1.56 in case wait_factor = 5
+
+    local tube_name = 'test_invalid_wait_max_on_take'
+    g.queue_conn:call('queue.create_tube', {
+        tube_name,
+        {
+            wait_factor = 5,
+            wait_max = 0.3, -- it will be overloaded
+        }
+    })
+
+    local timeout = 7
+
+    local channel = fiber.channel(2)
+    fiber.create(task_take, tube_name, timeout, channel, {
+        wait_max = -10, -- invalid wait_factor
+    })
+
+    fiber.sleep(1)
+    t.assert(g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), { 'simple_task' }, {timeout=1}))
+
+    local waiting_time = tonumber(channel:get()) / 1e6
+    local task = channel:get()
+
+    t.assert_almost_equals(waiting_time, 1.56, 0.1)
+    t.assert_equals(task[utils.index.data], 'simple_task')
+
+    channel:close()
+end
+
 function g.test_wait_max_on_tube()
     -- wait_max = 0.3
     -- wait_factor = 2 (default value)
