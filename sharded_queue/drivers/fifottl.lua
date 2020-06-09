@@ -264,7 +264,7 @@ function method.put(args)
     return normalize_task(task)
 end
 
-function method.take(args)
+local function take(args)
     local task = nil
     for _, tuple in
         box.space[args.tube_name].index.status:pairs( {state.READY} ) do
@@ -283,10 +283,16 @@ function method.take(args)
         next_event = dead_event
     end
 
-    task = box.space[args.tube_name]:update(task[index.task_id], {
+    return box.space[args.tube_name]:update(task[index.task_id], {
         { '=', index.status,     state.TAKEN },
         { '=', index.next_event, next_event  }
     })
+end
+
+function method.take(args)
+
+    local task = box.atomic(take, args)
+    if task == nil then return end
 
     update_stat(args.tube_name, 'take')
     wc_signal(args.tube_name)
