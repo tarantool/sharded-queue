@@ -259,6 +259,9 @@ function method.put(args)
         }
     end)
 
+    log.info(("[%d] put %d"):format(
+        task[index.bucket_id], task[index.task_id]))
+
     update_stat(args.tube_name, 'put')
     wc_signal(args.tube_name)
     return normalize_task(task)
@@ -288,6 +291,9 @@ function method.take(args)
         { '=', index.next_event, next_event  }
     })
 
+    log.info(("[%d] take %d"):format(
+        task[index.bucket_id], task[index.task_id]))
+
     update_stat(args.tube_name, 'take')
     wc_signal(args.tube_name)
     return normalize_task(task)
@@ -302,6 +308,9 @@ function method.delete(args)
         task = task:tomap()
         task.status = state.DONE
     end
+
+    log.info(("[%d] delete %d"):format(
+        task[index.bucket_id], task[index.task_id]))
 
     update_stat(args.tube_name, 'delete')
     update_stat(args.tube_name, 'done')
@@ -321,6 +330,9 @@ function method.touch(args)
             { op, index.ttr,        args.delta }
         })
 
+    log.info(("[%d] touch %d"):format(
+            task[index.bucket_id], task[index.task_id]))
+
     update_stat(args.tube_name, 'touch')
     wc_signal(args.tube_name)
     return normalize_task(task)
@@ -336,6 +348,9 @@ function method.ack(args)
         task.status = state.DONE
     end
 
+    log.info(("[%d] ack %d"):format(
+        task[index.bucket_id], task[index.task_id]))
+
     update_stat(args.tube_name, 'ack')
     update_stat(args.tube_name, 'done')
     wc_signal(args.tube_name)
@@ -348,6 +363,9 @@ end
 
 function method.release(args)
     local task = box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.READY} })
+
+    log.info(("[%d] release %d"):format(
+        task[index.bucket_id], task[index.task_id]))
 
     update_stat(args.tube_name, 'release')
     wc_signal(args.tube_name)
