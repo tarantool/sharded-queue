@@ -25,6 +25,11 @@ local function validate_options(options)
         end
     end
 
+    local ok, msg = utils.validate.log_request(option.log_request)
+    if not ok then
+        return false, msg
+    end
+
     return true
 end
 
@@ -78,6 +83,10 @@ function sharded_tube.take(self, timeout, options)
         options = {}
     end
     options.tube_name = self.tube_name
+
+    if options.log_request == nil then
+        options.log_request = self.log_request
+    end
 
     local wait_factor = self.wait_factor
 
