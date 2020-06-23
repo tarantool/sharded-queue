@@ -28,13 +28,13 @@ function utils.unpack_task_id(task_id, bucket_count)
     return bucket, index
 end
 
-utils.validate = {}
+utils.normalize = {}
 
-function utils.validate.log_request(log_request)
+function utils.normalize.log_request(log_request)
     if log_request and type(log_request) ~= 'boolean' then
         return false, "log_request must be boolean"
     end
-    return true
+    return log_request or false
 end
 
 return utils

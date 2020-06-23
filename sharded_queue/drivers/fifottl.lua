@@ -28,9 +28,10 @@ end
 
 local function log_operation(op_name, task)
     if task ~= nil then
-        log.info(("[%d] %s task %d"):format(task[index.bucket_id], op_name, task[index.task_id]))
+        log.info(("Storage[%d]: [%d] %s task %d")
+            :format(fiber.self():id(), task[index.bucket_id], op_name, task[index.task_id]))
     else
-        log.info(("%s nil task"):format(op_name))
+        log.info(("Storage[%d]: %s nil task"):format(fiber.self():id(), op_name))
     end
 end
 
