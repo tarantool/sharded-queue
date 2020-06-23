@@ -141,13 +141,16 @@ end
 
 
 function g.test_invalid_wait_max_on_take()
+    -- wait_max = 0.3
     -- start taking
     -- 0.00 : take fail => wait 0.01 (see wait_part in api.lua)
     -- 0.01 : take fail => wait 0.05
     -- 0.06 : take fail => wait 0.25
-    -- 0.31 : take fail => wait 1.25
-    -- 0.35 : put task
-    -- 1.56 : take success
+    -- 0.31 : take fail => wait min(1.25, 0.3) = 0.3
+    -- 0.61 : take fail => wait 0.3
+    -- 0.91 : take fail => wait 0.3
+    -- 1.00 : put task
+    -- 1.21 : take success
     -- expected time is 1.56 in case wait_factor = 5
 
     local tube_name = 'test_invalid_wait_max_on_take'
@@ -155,7 +158,7 @@ function g.test_invalid_wait_max_on_take()
         tube_name,
         {
             wait_factor = 5,
-            wait_max = 0.3, -- it will be overloaded
+            wait_max = 0.3,
         }
     })
 
@@ -163,7 +166,7 @@ function g.test_invalid_wait_max_on_take()
 
     local channel = fiber.channel(2)
     fiber.create(task_take, tube_name, timeout, channel, {
-        wait_max = -10, -- invalid wait_factor
+        wait_max = -10, -- invalid wait_factor, using 0.3
     })
 
     fiber.sleep(1)
@@ -172,7 +175,7 @@ function g.test_invalid_wait_max_on_take()
     local waiting_time = tonumber(channel:get()) / 1e6
     local task = channel:get()
 
-    t.assert_almost_equals(waiting_time, 1.56, 0.1)
+    t.assert_almost_equals(waiting_time, 1.21, 0.1)
     t.assert_equals(task[utils.index.data], 'simple_task')
 
     channel:close()
