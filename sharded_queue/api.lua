@@ -49,7 +49,9 @@ function sharded_tube.put(self, data, options)
     options.tube_name = self.tube_name
     options.bucket_id = bucket_id
     options.bucket_count = bucket_count
-    options.log_request = utils.normalize.log_request(options.log_request)
+    options.options = {
+        log_request = utils.normalize.log_request(options.log_request)
+    }
 
     local task, err = vshard.router.call(bucket_id,
         'write', 'tube_put', { options })
@@ -95,7 +97,7 @@ function sharded_tube.take(self, timeout, options)
     
     options.tube_name = self.tube_name
 
-    if options.log_request == nil then
+    if options and options.log_request == nil then
         options.log_request = self.log_request
     end
 
@@ -160,19 +162,21 @@ function sharded_tube.take(self, timeout, options)
     end
 end
 
-function sharded_tube.delete(self, task_id)
+function sharded_tube.delete(self, task_id, options)
     -- task delete from tube --
 
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
+    if options and options.log_request == nil then
+        options.log_request = self.log_request
+    end
+
     local task, err = vshard.router.call(bucket_id, 'write', 'tube_delete', {
         {
             tube_name = self.tube_name,
             task_id = task_id,
-            {
-                log_request = self.log_request,
-            },
+            options = options,
         }
     })
     -- re-raise storage errors
@@ -185,19 +189,21 @@ function sharded_tube.delete(self, task_id)
     return task
 end
 
-function sharded_tube.release(self, task_id)
+function sharded_tube.release(self, task_id, options)
     -- task release from tube --
 
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
+    if options and options.log_request == nil then
+        options.log_request = self.log_request
+    end
+
     local task, err = vshard.router.call(bucket_id, 'write', 'tube_release', {
         {
             tube_name = self.tube_name,
             task_id = task_id,
-            {
-                log_request = self.log_request,
-            },
+            options = options,
         }
     })
     -- re-raise storage errors
@@ -210,7 +216,7 @@ function sharded_tube.release(self, task_id)
     return task
 end
 
-function sharded_tube.touch(self, task_id, delta)
+function sharded_tube.touch(self, task_id, delta, options)
     if delta == nil or delta <= 0 then
         return
     end
@@ -224,14 +230,16 @@ function sharded_tube.touch(self, task_id, delta)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
+    if options and options.log_request == nil then
+        options.log_request = self.log_request
+    end
+
     local task, err = vshard.router.call(bucket_id, 'write', 'tube_touch', {
         {
             tube_name = self.tube_name,
             task_id = task_id,
             delta = delta,
-            {
-                log_request = self.log_request,
-            },
+            options = options,
         }
     })
     -- re-raise storage errors
@@ -244,7 +252,7 @@ function sharded_tube.touch(self, task_id, delta)
     return task
 end
 
-function sharded_tube.ack(self, task_id)
+function sharded_tube.ack(self, task_id, options)
     -- task delete from tube --
 
     local bucket_count = vshard.router.bucket_count()
@@ -255,13 +263,15 @@ function sharded_tube.ack(self, task_id)
             :format(fiber.self():id()), task_id, bucket_id)
     end
 
+    if options and options.log_request == nil then
+        options.log_request = self.log_request
+    end
+
     local task, err = vshard.router.call(bucket_id, 'write', 'tube_ack', {
         {
             tube_name = self.tube_name,
             task_id = task_id,
-            {
-                log_request = self.log_request,
-            },
+            options = options,
         }
     })
     -- re-raise storage errors
@@ -274,16 +284,21 @@ function sharded_tube.ack(self, task_id)
     return task
 end
 
-function sharded_tube.bury(self, task_id)
+function sharded_tube.bury(self, task_id, options)
     -- task bury --
 
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
+    if options and options.log_request == nil then
+        options.log_request = self.log_request
+    end
+
     local task, err = vshard.router.call(bucket_id, 'write', 'tube_bury', {
         {
             tube_name = self.tube_name,
-            task_id = task_id
+            task_id = task_id,
+            options = options,
         }
     })
     -- re-raise storage errors
@@ -296,7 +311,7 @@ function sharded_tube.bury(self, task_id)
     return task
 end
 
-function sharded_tube.kick(self, count)
+function sharded_tube.kick(self, count, options)
     -- try kick few tasks --
 
     local storages = cartridge_rpc.get_candidates(
@@ -305,13 +320,18 @@ function sharded_tube.kick(self, count)
             leader_only = true
         })
 
+    if options and options.log_request == nil then
+        options.log_request = self.log_request
+    end
+
     local kicked_count = 0 -- count kicked task
     for _, instance_uri in ipairs(storages) do
         local ok, k = pcall(remote_call, 'tube_kick',
             instance_uri,
             {
                 tube_name = self.tube_name,
-                count     = count - kicked_count
+                count     = count - kicked_count,
+                options   = options,
             })
         if not ok then
             log.error(k)
@@ -328,14 +348,19 @@ function sharded_tube.kick(self, count)
     return kicked_count
 end
 
-function sharded_tube.peek(self, task_id)
+function sharded_tube.peek(self, task_id, options)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
+
+    if options and options.log_request == nil then
+        options.log_request = self.log_request
+    end
 
     local task, err = vshard.router.call(bucket_id, 'write', 'tube_peek', {
         {
             tube_name = self.tube_name,
-            task_id = task_id
+            task_id = task_id,
+            options = options,
         }
     })
     -- re-raise storage errors
