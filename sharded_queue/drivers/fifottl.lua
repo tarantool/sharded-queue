@@ -26,6 +26,15 @@ local function is_expired(task)
     return (task[index.created] + task[index.ttl]) <= time.cur()
 end
 
+local function log_operation(op_name, task)
+    if task ~= nil then
+        log.info(("Storage[%d]: [%d] %s task %d")
+            :format(fiber.self():id(), task[index.bucket_id], op_name, task[index.task_id]))
+    else
+        log.info(("Storage[%d]: %s nil task"):format(fiber.self():id(), op_name))
+    end
+end
+
 local wait_cond_map = {}
 
 local function wc_signal(tube_name)
@@ -259,6 +268,10 @@ function method.put(args)
         }
     end)
 
+    if args.options and args.options.log_request then
+        log_operation("put", task)
+    end
+
     update_stat(args.tube_name, 'put')
     wc_signal(args.tube_name)
     return normalize_task(task)
@@ -294,6 +307,10 @@ function method.take(args)
     local task = box.atomic(take, args)
     if task == nil then return end
 
+    if args.options and args.options.log_request then
+        log_operation("take", task)
+    end
+
     update_stat(args.tube_name, 'take')
     wc_signal(args.tube_name)
     return normalize_task(task)
@@ -307,6 +324,10 @@ function method.delete(args)
     if task ~= nil then
         task = task:tomap()
         task.status = state.DONE
+    end
+
+    if args.options and args.options.log_request then
+        log_operation("delete", task)
     end
 
     update_stat(args.tube_name, 'delete')
@@ -327,6 +348,10 @@ function method.touch(args)
             { op, index.ttr,        args.delta }
         })
 
+    if args.options and args.options.log_request then
+        log_operation("touch", task)
+    end
+
     update_stat(args.tube_name, 'touch')
     wc_signal(args.tube_name)
     return normalize_task(task)
@@ -342,6 +367,10 @@ function method.ack(args)
         task.status = state.DONE
     end
 
+    if args.options and args.options.log_request then
+        log_operation("ack", task)
+    end
+
     update_stat(args.tube_name, 'ack')
     update_stat(args.tube_name, 'done')
     wc_signal(args.tube_name)
@@ -349,11 +378,22 @@ function method.ack(args)
 end
 
 function method.peek(args)
-    return normalize_task(box.space[args.tube_name]:get(args.task_id))
+
+    local task = box.space[args.tube_name]:get(args.task_id)
+
+    if args.options and args.options.log_request then
+        log_operation("peek", task)
+    end
+
+    return normalize_task(task)
 end
 
 function method.release(args)
     local task = box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.READY} })
+
+    if args.options and args.options.log_request then
+        log_operation("release", task)
+    end
 
     update_stat(args.tube_name, 'release')
     wc_signal(args.tube_name)
@@ -363,7 +403,12 @@ end
 function method.bury(args)
     update_stat(args.tube_name, 'bury')
     wc_signal(args.tube_name)
-    return normalize_task(box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.BURIED} }))
+
+    local task = box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.BURIED} })
+    if args.options and args.options.log_request then
+        log_operation("release", task)
+    end
+    return normalize_task(task)
 end
 
 -- unbury several tasks
