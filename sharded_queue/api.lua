@@ -97,7 +97,7 @@ function sharded_tube.take(self, timeout, options)
     
     options.tube_name = self.tube_name
 
-    if options and options.log_request == nil then
+    if options.log_request == nil then
         options.log_request = self.log_request
     end
 
