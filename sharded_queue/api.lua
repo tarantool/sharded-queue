@@ -99,6 +99,8 @@ function sharded_tube.take(self, timeout, options)
 
     if options.log_request == nil then
         options.log_request = self.log_request
+    else
+        options.log_request = utils.normalize.log_request(options.log_request)
     end
 
     local wait_factor = self.wait_factor
