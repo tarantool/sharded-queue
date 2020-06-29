@@ -50,7 +50,7 @@ function sharded_tube.put(self, data, options)
     options.bucket_id = bucket_id
     options.bucket_count = bucket_count
     options.options = {
-        log_request = utils.normalize.log_request(options.log_request)
+        log_request = utils.normalize.log_request(options.log_request) or self.log_request,
     }
 
     local task, err = vshard.router.call(bucket_id,
@@ -99,6 +99,8 @@ function sharded_tube.take(self, timeout, options)
 
     if options.log_request == nil then
         options.log_request = self.log_request
+    else
+        options.log_request = utils.normalize.log_request(options.log_request)
     end
 
     local wait_factor = self.wait_factor
