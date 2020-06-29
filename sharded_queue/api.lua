@@ -50,7 +50,7 @@ function sharded_tube.put(self, data, options)
     options.bucket_id = bucket_id
     options.bucket_count = bucket_count
     options.options = {
-        log_request = utils.normalize.log_request(options.log_request)
+        log_request = utils.normalize.log_request(options.log_request) or self.log_request,
     }
 
     local task, err = vshard.router.call(bucket_id,
