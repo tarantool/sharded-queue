@@ -268,7 +268,7 @@ function method.put(args)
         }
     end)
 
-    if args.options and args.options.log_request then
+    if args.extra and args.extra.log_request then
         log_operation("put", task)
     end
 
@@ -307,7 +307,7 @@ function method.take(args)
     local task = box.atomic(take, args)
     if task == nil then return end
 
-    if args.options and args.options.log_request then
+    if args.extra and args.extra.log_request then
         log_operation("take", task)
     end
 
@@ -326,7 +326,7 @@ function method.delete(args)
         task.status = state.DONE
     end
 
-    if args.options and args.options.log_request then
+    if args.extra and args.extra.log_request then
         log_operation("delete", task)
     end
 
@@ -348,7 +348,7 @@ function method.touch(args)
             { op, index.ttr,        args.delta }
         })
 
-    if args.options and args.options.log_request then
+    if args.extra and args.extra.log_request then
         log_operation("touch", task)
     end
 
@@ -367,7 +367,7 @@ function method.ack(args)
         task.status = state.DONE
     end
 
-    if args.options and args.options.log_request then
+    if args.extra and args.extra.log_request then
         log_operation("ack", task)
     end
 
@@ -381,7 +381,7 @@ function method.peek(args)
 
     local task = box.space[args.tube_name]:get(args.task_id)
 
-    if args.options and args.options.log_request then
+    if args.extra and args.extra.log_request then
         log_operation("peek", task)
     end
 
@@ -391,7 +391,7 @@ end
 function method.release(args)
     local task = box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.READY} })
 
-    if args.options and args.options.log_request then
+    if args.extra and args.extra.log_request then
         log_operation("release", task)
     end
 
@@ -405,8 +405,8 @@ function method.bury(args)
     wc_signal(args.tube_name)
 
     local task = box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.BURIED} })
-    if args.options and args.options.log_request then
-        log_operation("release", task)
+    if args.extra and args.extra.log_request then
+        log_operation("bury", task)
     end
     return normalize_task(task)
 end
