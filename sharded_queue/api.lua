@@ -54,6 +54,10 @@ function sharded_tube.put(self, data, options)
 
     options = options or {}
 
+    if options.priority == nil and options.pri ~= nil then
+        options.priority = options.pri
+    end
+
     options.data = data
     options.tube_name = self.tube_name
     options.bucket_id = bucket_id
@@ -451,7 +455,12 @@ function sharded_queue.create_tube(tube_name, options)
     local ok , err = validate_options(options)
     if not ok then error(err) end
 
-    tubes[tube_name] = options or {}
+    options = options or {}
+    if options.priority == nil and options.pri ~= nil then
+        options.priority = options.pri
+    end
+
+    tubes[tube_name] = options
     ok, err = cartridge.config_patch_clusterwide({ tubes = tubes })
     if not ok then error(err) end
 
