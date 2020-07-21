@@ -40,6 +40,26 @@ function g.test_fifottl_config()
     t.assert_equals(stored_task.priority, tube_options.priority)
 end
 
+function g.test_fifottl_config_pri()
+    local tube_name = 'test_fifottl_config_pri'
+    local tube_options = { ttl = 43, ttr = 15, pri = 15, wait_factor = 1 }
+    g.queue_conn:call('queue.create_tube', {
+        tube_name,
+        tube_options
+    })
+
+    local task_id = g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), {
+        'simple data',
+    })[1]
+
+    local stored_task = lookup_task(task_id, tube_name, config.cluster)
+    t.assert_equals(stored_task.priority, tube_options.pri)
+
+    task_id = g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), { 'simple data', {pri = 18}})[1]
+    stored_task = lookup_task(task_id, tube_name, config.cluster)
+    t.assert_equals(stored_task.priority, 18)
+end
+
 function g.test_touch_task()
     local tube_name = 'touch_task_test'
     g.queue_conn:call('queue.create_tube', {
