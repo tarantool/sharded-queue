@@ -37,4 +37,13 @@ function utils.normalize.log_request(log_request)
     return log_request or false
 end
 
+function utils.normalize.wait_max(wait_max)
+    if wait_max ~= nil then
+        if type(wait_max) ~= 'number' or wait_max <= 0 then
+            return nil, "wait_max must be number greater than 0"
+        end
+    end
+    return wait_max
+end
+
 return utils
