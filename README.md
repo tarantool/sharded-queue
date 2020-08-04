@@ -98,3 +98,26 @@ make test
     ```lua
       tube:take(3, {cumstom_driver_option='test'})
     ```
+
+* **Logging**: There are 2 ways to log your api method calls:
+
+    1. with the parameter `log_request` during tube creation;
+
+    2. with the exact same parameter on each operation (each of methods (`take`, `put`, `ack`, `release`, `delete`, `touch`, `bury`, `peek`) has additional table argument ``options``).
+    In this case `log_request` will override the tube's log parameter for only 1 operation.
+
+    Examples:
+
+    ```lua
+        conn:call('queue.create_tube', { mytube, {
+        log_request = true, -- log all operations
+    }})
+
+    conn:call("queue.tube.mytube:put", { data, {
+        log_request = false, -- this PUT will not be logged
+    }})
+
+    conn:call("queue.tube.mytube:put", { anoter_data }) -- and this PUT will be logged
+    ```
+
+    If you use **fifottl** driver (default), you can log driver's method calls with `log_request` (log router's and storage's operations).
