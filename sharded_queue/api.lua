@@ -468,9 +468,7 @@ function sharded_queue.create_tube(tube_name, options)
 end
 
 local function init(opts)
-    if opts.is_master then
-        rawset(_G, 'queue', sharded_queue)
-    end
+    rawset(_G, 'queue', sharded_queue)
 end
 
 local function apply_config(cfg, opts)
