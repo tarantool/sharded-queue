@@ -468,13 +468,13 @@ function sharded_queue.create_tube(tube_name, options)
 end
 
 local function init(opts)
-    if opts.is_master then
+    if not box.cfg.read_only then
         rawset(_G, 'queue', sharded_queue)
     end
 end
 
 local function apply_config(cfg, opts)
-    if opts.is_master then
+    if not box.cfg.read_only then
         local cfg_tubes = cfg.tubes or {}
 
         -- try init tubes --

@@ -44,7 +44,7 @@ local function validate_config(conf_new, _)
 end
 
 local function apply_config(cfg, opts)
-    if opts.is_master then
+    if not box.cfg.read_only then
         local cfg_tubes = cfg.tubes or {}
 
         local existing_tubes = tubes
@@ -86,7 +86,7 @@ local methods = {
 }
 
 local function init(opts)
-    if opts.is_master then
+    if not box.cfg.read_only then
         statistics.init()
 
         for _, name in pairs(methods) do
