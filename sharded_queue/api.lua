@@ -468,13 +468,10 @@ function sharded_queue.create_tube(tube_name, options)
 end
 
 local function init(opts)
-    if opts.is_master then
-        rawset(_G, 'queue', sharded_queue)
-    end
+    rawset(_G, 'queue', sharded_queue)
 end
 
 local function apply_config(cfg, opts)
-    if opts.is_master then
         local cfg_tubes = cfg.tubes or {}
 
         -- try init tubes --
@@ -499,7 +496,6 @@ local function apply_config(cfg, opts)
                 sharded_queue.tube[tube_name] = nil
             end
         end
-    end
 end
 
 -- FIXME: Remove when https://github.com/tarantool/cartridge/issues/308 resolved

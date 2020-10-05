@@ -26,6 +26,13 @@ config.cluster = cartridge_helpers.Cluster:new({
                     alias = 'queue-router',
                     advertise_port = 3301,
                     cluster_cookie = 'sharded-queue-cookie',
+                },
+                {
+                    instance_uuid = 'aaaaaaaa-aaaa-4000-b000-000000000002',
+                    alias = 'queue-router-1',
+                    advertise_port = 3304,
+                    http_port = 8084,
+                    cluster_cookie = 'sharded-queue-cookie',
                 }
             },
         },
