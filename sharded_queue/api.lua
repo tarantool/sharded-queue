@@ -472,30 +472,30 @@ local function init(opts)
 end
 
 local function apply_config(cfg, opts)
-        local cfg_tubes = cfg.tubes or {}
+    local cfg_tubes = cfg.tubes or {}
 
-        -- try init tubes --
-        for tube_name, options in pairs(cfg_tubes) do
-            if sharded_queue.tube[tube_name] == nil then
-                local self = setmetatable({
-                    tube_name = tube_name,
-                    wait_max = options.wait_max,
-                    wait_factor = options.wait_factor or time.DEFAULT_WAIT_FACTOR,
-                    log_request = utils.normalize.log_request(options.log_request),
-                }, {
-                    __index = sharded_tube
-                })
-                sharded_queue.tube[tube_name] = self
-            end
+    -- try init tubes --
+    for tube_name, options in pairs(cfg_tubes) do
+        if sharded_queue.tube[tube_name] == nil then
+            local self = setmetatable({
+                tube_name = tube_name,
+                wait_max = options.wait_max,
+                wait_factor = options.wait_factor or time.DEFAULT_WAIT_FACTOR,
+                log_request = utils.normalize.log_request(options.log_request),
+            }, {
+                __index = sharded_tube
+            })
+            sharded_queue.tube[tube_name] = self
         end
+    end
 
-        -- try drop tubes --
-        for tube_name, _ in pairs(sharded_queue.tube) do
-            if cfg_tubes[tube_name] == nil then
-                setmetatable(sharded_queue.tube[tube_name], nil)
-                sharded_queue.tube[tube_name] = nil
-            end
+    -- try drop tubes --
+    for tube_name, _ in pairs(sharded_queue.tube) do
+        if cfg_tubes[tube_name] == nil then
+            setmetatable(sharded_queue.tube[tube_name], nil)
+            sharded_queue.tube[tube_name] = nil
         end
+    end
 end
 
 -- FIXME: Remove when https://github.com/tarantool/cartridge/issues/308 resolved
