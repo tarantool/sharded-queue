@@ -52,6 +52,10 @@ g.test_role_statistics = function()
 end
 
 g.test_role_statistics_read_only_router = function()
+    --make sure queue_conn_1 is read_only
+    local ro = g.queue_conn_1:eval("return box.cfg.read_only")
+    t.assert_equals(ro, true)
+
     --create queue and put task using read_only router connection
     local tube_name = 'test_tube_read_only_router'
     g.queue_conn_1:call('queue.create_tube', { tube_name })
