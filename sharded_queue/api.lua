@@ -43,7 +43,8 @@ local function validate_options(options)
 end
 
 local function log_task(op_name, task)
-    log.info(("Router[%d] %s: task %d"):format(fiber.self():id(), op_name, task[1])) -- taskID
+    local task_id = type(task) == 'table' and task[1] or task
+    log.info(string.format([[Router[%d] %s: task %s]], fiber.self():id(), op_name, task_id))
 end
 
 local sharded_tube = {}
