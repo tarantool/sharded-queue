@@ -43,8 +43,23 @@ local function validate_config(conf_new, _)
     return true
 end
 
+local methods = {
+    'statistic',
+    'put',
+    'take',
+    'delete',
+    'touch',
+    'ack',
+    'peek',
+    'release',
+    'bury',
+    'kick',
+}
+
 local function apply_config(cfg, opts)
     if opts.is_master then
+        statistics.init()
+
         local cfg_tubes = cfg.tubes or {}
 
         local existing_tubes = tubes
@@ -68,31 +83,11 @@ local function apply_config(cfg, opts)
                 driver.drop(tube_name)
             end
         end
-    end
-    return true
-end
 
-local methods = {
-    'statistic',
-    'put',
-    'take',
-    'delete',
-    'touch',
-    'ack',
-    'peek',
-    'release',
-    'bury',
-    'kick',
-}
-
-local function init(opts)
-    if opts.is_master then
-        statistics.init()
-
+        -- register tube methods --
         for _, name in pairs(methods) do
             local func = function(args)
                 if args == nil then args = {} end
-                local cfg_tubes = cartridge.config_get_readonly('tubes') or {}
                 args.options = cfg_tubes[args.tube_name] or {}
 
                 local tube_name = args.tube_name
@@ -112,6 +107,12 @@ local function init(opts)
         rawset(_G, 'tube_statistic', tube_statistic_func)
         box.schema.func.create('tube_statistic', { if_not_exists = true })
     end
+
+    return true
+end
+
+local function init(opts)
+
 end
 
 return {
