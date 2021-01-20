@@ -43,6 +43,37 @@ local function validate_config(conf_new, _)
     return true
 end
 
+local methods = {
+    'statistic',
+    'put',
+    'take',
+    'delete',
+    'touch',
+    'ack',
+    'peek',
+    'release',
+    'bury',
+    'kick',
+}
+
+local function register_tube_methods()
+    for _, name in pairs(methods) do
+        local func = function(args)
+            if args == nil then args = {} end
+            local cfg_tubes = cartridge.config_get_readonly('tubes') or {}
+            args.options = cfg_tubes[args.tube_name] or {}
+
+            local tube_name = args.tube_name
+            if tubes[tube_name].method[name] == nil then error(('Method %s not implemented in tube %s'):format(name, tube_name)) end
+            return tubes[tube_name].method[name](args)
+        end
+
+        local global_name = 'tube_' .. name
+        rawset(_G, global_name, func)
+        box.schema.func.create(global_name, { if_not_exists = true })
+    end
+end
+
 local function apply_config(cfg, opts)
     if opts.is_master then
         local cfg_tubes = cfg.tubes or {}
@@ -68,42 +99,17 @@ local function apply_config(cfg, opts)
                 driver.drop(tube_name)
             end
         end
+
+        register_tube_methods()
     end
     return true
 end
 
-local methods = {
-    'statistic',
-    'put',
-    'take',
-    'delete',
-    'touch',
-    'ack',
-    'peek',
-    'release',
-    'bury',
-    'kick',
-}
+
 
 local function init(opts)
     if opts.is_master then
         statistics.init()
-
-        for _, name in pairs(methods) do
-            local func = function(args)
-                if args == nil then args = {} end
-                local cfg_tubes = cartridge.config_get_readonly('tubes') or {}
-                args.options = cfg_tubes[args.tube_name] or {}
-
-                local tube_name = args.tube_name
-                if tubes[tube_name].method[name] == nil then error(('Method %s not implemented in tube %s'):format(name, tube_name)) end
-                return tubes[tube_name].method[name](args)
-            end
-
-            local global_name = 'tube_' .. name
-            rawset(_G, global_name, func)
-            box.schema.func.create(global_name, { if_not_exists = true })
-        end
 
         local tube_statistic_func = function(args)
             return statistics.get(args.tube_name)
