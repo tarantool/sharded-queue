@@ -27,12 +27,11 @@ local function is_expired(task)
 end
 
 local function log_operation(op_name, task)
-    if task ~= nil then
-        log.info(("Storage[%d]: [%d] %s task %d")
-            :format(fiber.self():id(), task[index.bucket_id], op_name, task[index.task_id]))
-    else
-        log.info(("Storage[%d]: %s nil task"):format(fiber.self():id(), op_name))
+    local bucket_id, task_id
+    if type(task) == 'table' then
+        bucket_id, task_id = task[index.bucket_id], task[index.task_id]
     end
+    log.info(string.format([[Storage[%d]: [%s] %s task %s]], fiber.self():id(), bucket_id, op_name, task_id))
 end
 
 local wait_cond_map = {}
