@@ -99,15 +99,6 @@ local function apply_config(cfg, opts)
             rawset(_G, global_name, func)
             box.schema.func.create(global_name, { if_not_exists = true })
         end
-    end
-    return true
-end
-
-
-
-local function init(opts)
-    if opts.is_master then
-        statistics.init()
 
         local tube_statistic_func = function(args)
             return statistics.get(args.tube_name)
