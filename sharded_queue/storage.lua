@@ -58,6 +58,8 @@ local methods = {
 
 local function apply_config(cfg, opts)
     if opts.is_master then
+        statistics.init()
+
         local cfg_tubes = cfg.tubes or {}
 
         local existing_tubes = tubes
@@ -114,6 +116,12 @@ local function init(opts)
         rawset(_G, 'tube_statistic', tube_statistic_func)
         box.schema.func.create('tube_statistic', { if_not_exists = true })
     end
+
+    return true
+end
+
+local function init(opts)
+
 end
 
 return {
