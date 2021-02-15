@@ -122,4 +122,8 @@ return {
     dependencies = {
         'cartridge.roles.vshard-storage',
     },
+
+    __private = {
+        methods = methods,
+    }
 }

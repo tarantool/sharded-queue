@@ -30,8 +30,7 @@ config.cluster = cartridge_helpers.Cluster:new({
                 {
                     instance_uuid = 'aaaaaaaa-aaaa-4000-b000-000000000002',
                     alias = 'queue-router-1',
-                    advertise_port = 3304,
-                    http_port = 8084,
+                    advertise_port = 3302,
                     cluster_cookie = 'sharded-queue-cookie',
                 }
             },
@@ -44,9 +43,14 @@ config.cluster = cartridge_helpers.Cluster:new({
             servers = {
                 {
                     instance_uuid = 'bbbbbbbb-bbbb-4000-b000-000000000001',
-                    alias = 'queue-storage-1',
-                    advertise_port = 3302,
-                    http_port = 8082,
+                    alias = 'queue-storage-1-0',
+                    advertise_port = 3303,
+                    cluster_cookie = 'sharded-queue-cookie',
+                },
+                {
+                    instance_uuid = 'bbbbbbbb-bbbb-4000-b000-000000000002',
+                    alias = 'queue-storage-1-1',
+                    advertise_port = 3304,
                     cluster_cookie = 'sharded-queue-cookie',
                 },
             }
@@ -57,11 +61,16 @@ config.cluster = cartridge_helpers.Cluster:new({
             servers = {
                 {
                     instance_uuid = 'cccccccc-cccc-4000-b000-000000000001',
-                    alias = 'queue-storage-2',
-                    advertise_port = 3303,
-                    http_port = 8083,
+                    alias = 'queue-storage-2-0',
+                    advertise_port = 3305,
                     cluster_cookie = 'sharded-queue-cookie',
-                }
+                },
+                {
+                    instance_uuid = 'cccccccc-cccc-4000-b000-000000000002',
+                    alias = 'queue-storage-2-1',
+                    advertise_port = 3306,
+                    cluster_cookie = 'sharded-queue-cookie',
+                },
             },
         }
     }
