@@ -217,17 +217,17 @@ function sharded_tube.release(self, task_id, options)
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
     options = options or {}
+    if options.priority == nil and options.pri ~= nil then
+        options.priority = options.pri
+    end
+    options.task_id = task_id
+    options.tube_name = self.tube_name
+
     options.extra = {
         log_request = utils.normalize.log_request(options.log_request) or self.log_request,
     }
 
-    local task, err = vshard.router.call(bucket_id, 'write', 'tube_release', {
-        {
-            tube_name = self.tube_name,
-            task_id = task_id,
-            options = options,
-        }
-    })
+    local task, err = vshard.router.call(bucket_id, 'write', 'tube_release', {options})
     -- re-raise storage errors
     if err ~= nil then error(err) end
 
