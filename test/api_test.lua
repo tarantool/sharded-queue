@@ -9,7 +9,7 @@ local utils = require('test.helper.utils')
 
 g.before_all(function()
     g.queue_conn = config.cluster:server('queue-router').net_box
-    g.queue_conn_1 = config.cluster:server('queue-router-1').net_box
+    g.queue_conn_ro = config.cluster:server('queue-router-1').net_box
 end)
 
 g.test_exported_api = function()
@@ -52,21 +52,21 @@ g.test_role_statistics = function()
 end
 
 g.test_role_statistics_read_only_router = function()
-    --make sure queue_conn_1 is read_only
-    local ro = g.queue_conn_1:eval("return box.cfg.read_only")
+    --make sure queue_conn_ro is read_only
+    local ro = g.queue_conn_ro:eval("return box.cfg.read_only")
     t.assert_equals(ro, true)
 
     --create queue and put task using read_only router connection
     local tube_name = 'test_tube_read_only_router'
-    g.queue_conn_1:call('queue.create_tube', { tube_name })
+    g.queue_conn_ro:call('queue.create_tube', { tube_name })
 
     local cmd = ("return require('sharded_queue.api').put('%s', 'task_1')"):format(tube_name)
-    local result = g.queue_conn_1:eval(cmd)
+    local result = g.queue_conn_ro:eval(cmd)
     t.assert_equals(result[utils.index.data], 'task_1')
 
     cmd = ("return require('sharded_queue.api').statistics('%s')"):format(tube_name)
     local result_m = g.queue_conn:eval(cmd)
-    local result_ro = g.queue_conn_1:eval(cmd)
+    local result_ro = g.queue_conn_ro:eval(cmd)
 
     t.assert_type(result_m, 'table')
     t.assert_type(result_ro, 'table')
