@@ -21,5 +21,5 @@ lint:
 .PHONY: test
 test: lint
 	rm -f luacov*
-	.rocks/bin/luatest -v --shuffle all --coverage
+	.rocks/bin/luatest -v --coverage
 	.rocks/bin/luacov . && grep -A999 '^Summary' luacov.report.out

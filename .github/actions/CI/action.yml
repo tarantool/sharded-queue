@@ -1,0 +1,5 @@
+name: 'Tests and Lint'
+description: 'Run test cases and check lint'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
