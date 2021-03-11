@@ -228,12 +228,11 @@ end
 local method = {}
 
 function method.put(args)
-    local delay = args.delay or 0
     -- setup params --
-
-    local ttl = args.ttl or args.options.ttl or time.MAX_TIMEOUT
-    local ttr = args.ttr or args.options.ttr or ttl
-    local priority = args.priority or args.options.priority or 0
+    local delay = args.options.delay or 0
+    local ttl = args.options.ttl or args.default_options.ttl or time.MAX_TIMEOUT
+    local ttr = args.options.ttr or args.default_options.ttr or ttl
+    local priority = args.options.priority or args.default_options.priority or 0
 
     local task = box.atomic(function()
         local idx = get_index(args.tube_name, args.bucket_id)
@@ -267,7 +266,7 @@ function method.put(args)
         }
     end)
 
-    if args.extra and args.extra.log_request then
+    if args.options.extra and args.options.extra.log_request then
         log_operation("put", task)
     end
 

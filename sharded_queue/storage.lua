@@ -88,7 +88,7 @@ local function apply_config(cfg, opts)
         for _, name in pairs(methods) do
             local func = function(args)
                 if args == nil then args = {} end
-                args.options = cfg_tubes[args.tube_name] or {}
+                args.default_options = cfg_tubes[args.tube_name] or {}
 
                 local tube_name = args.tube_name
                 if tubes[tube_name].method[name] == nil then error(('Method %s not implemented in tube %s'):format(name, tube_name)) end
