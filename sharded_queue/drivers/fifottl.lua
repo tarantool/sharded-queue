@@ -18,6 +18,12 @@ local index = {
     index      = 10
 }
 
+local dedup_index = {
+    deduplication_id  = 1,
+    created           = 2,
+    bucket_id         = 3
+}
+
 local function update_stat(tube_name, name)
     statistics.update(tube_name, name, '+', 1)
 end
@@ -101,6 +107,22 @@ local function fiber_iteration(tube_name, processed)
         else
             local e = time.sec(tonumber(task[index.next_event] - cur))
             estimated = e < estimated and e or estimated
+        end
+    end
+
+    -- delete old tasks
+    local dedup_space = box.space[tube_name .. "_deduplication"]
+    if dedup_space ~= nil then
+        task = dedup_space.index.created:min()
+        if task then
+            if task[dedup_index.created] < cur - time.DEDUPLICATION_TIME then
+                processed = processed + 1
+                estimated = 0
+                dedup_space:delete(task[dedup_index.deduplication_id])
+            else
+                local e = time.sec(tonumber(task[dedup_index.created] - cur + time.DEDUPLICATION_TIME))
+                estimated = e < estimated and e or estimated
+            end
         end
     end
 
@@ -203,6 +225,37 @@ local function tube_create(args)
         if_not_exists = if_not_exists
     })
 
+    if args.options.content_based_deduplication == true then
+        local deduplication_opts = {}
+        deduplication_opts.temporary = args.options.temporary or false
+        deduplication_opts.if_not_exists = if_not_exists
+        deduplication_opts.engine = args.options.engine or 'memtx'
+        deduplication_opts.format = {
+            { name = 'deduplication_id', type = 'string' },
+            { name = 'created', type = 'unsigned' },
+            { name = 'bucket_id', type = 'unsigned' }
+        }
+        local deduplication = box.schema.create_space(args.name .. "_deduplication", deduplication_opts)
+        deduplication:create_index('deduplication_id', {
+            type = 'tree',
+            parts = { 'deduplication_id' },
+            unique = true,
+            if_not_exists = if_not_exists
+        })
+        deduplication:create_index('created', {
+            type = 'tree',
+            parts = { 'created' },
+            unique = false,
+            if_not_exists = if_not_exists
+        })
+        deduplication:create_index('bucket_id', {
+            type = 'tree',
+            parts = { 'bucket_id' },
+            unique = false,
+            if_not_exists = if_not_exists
+        })
+    end
+
     -- run fiber for tracking event
     fiber.create(fiber_common, args.name)
 end
@@ -223,6 +276,14 @@ end
 local function normalize_task(task)
     if task == nil then return nil end
     return { task.task_id, task.status, task.data }
+end
+
+local function get_space_by_name(name)
+    return box.space[name]
+end
+
+local function get_deduplication_space(args)
+    return get_space_by_name(args.tube_name .. '_deduplication')
 end
 
 local method = {}
@@ -251,6 +312,14 @@ function method.put(args)
             next_event = time.event(delay)
         else
             next_event = time.event(ttl)
+        end
+
+        if args.message_deduplication_id ~= nil or args.options.message_deduplication_id ~= nil then
+            local key = args.message_deduplication_id or args.options.message_deduplication_id
+            local space = get_deduplication_space(args)
+            if space ~= nil then
+                space:insert {key, time.cur(), args.bucket_id}
+            end
         end
 
         return box.space[args.tube_name]:insert {

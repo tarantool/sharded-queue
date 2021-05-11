@@ -3,6 +3,7 @@ local fiber = require('fiber')
 local time = {}
 
 time.MAX_TIMEOUT      = 365 * 86400 * 100       -- MAX_TIMEOUT == 100 years
+time.DEDUPLICATION_TIME = 5 * 60 * 1e6          -- DEDUPLICATION_TIME == 5 minutes
 time.TIMEOUT_INFINITY = 18446744073709551615ULL -- Set to TIMEOUT_INFINITY
 time.MIN_NET_BOX_CALL_TIMEOUT = 1               -- MIN_NET_BOX_CALL_TIMEOUT == 1 second
 time.DEFAULT_WAIT_FACTOR = 2

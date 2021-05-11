@@ -2,19 +2,64 @@ local state = require('sharded_queue.state')
 local utils = require('sharded_queue.utils')
 local log = require('log') -- luacheck: ignore
 local statistics = require('sharded_queue.statistics')
+local time  = require('sharded_queue.time')
+local fiber = require('fiber')
 
 local function update_stat(tube_name, name)
     statistics.update(tube_name, name, '+', 1)
 end
 
+local dedup_index = {
+    deduplication_id  = 1,
+    created           = 2,
+    bucket_id         = 3
+}
+
+local function fiber_iteration(tube_name)
+    local cur  = time.cur()
+    local timeout = time.DEDUPLICATION_TIME
+    -- delete old tasks
+    local cnt = 0
+    for _, tuple in box.space[tube_name].index.created:pairs({cur - timeout}, {iterator = box.index.LT, limit = 1000}) do
+        cnt = cnt + 1
+        box.space[tube_name]:delete(tuple[dedup_index.deduplication_id])
+    end
+    timeout = time.sec(timeout)
+
+    local task = box.space[tube_name].index.created:min()
+    if task ~= nil then
+        local e = time.sec(tonumber(task[dedup_index.created] - cur + time.DEDUPLICATION_TIME))
+        timeout = e < timeout and e or timeout
+    end
+
+    fiber.sleep(timeout)
+
+    return cnt
+end
+
+local function fiber_common(tube_name)
+    fiber.name(tube_name)
+
+    while true do
+        if not box.cfg.read_only then
+            local ok, ret = pcall(fiber_iteration, tube_name)
+            if not ok and not (ret.code == box.error.READONLY) then
+                return 1
+            end
+        else
+            fiber.sleep(0.1)
+        end
+    end
+end
+
 local method = {}
 
-local function tube_create(opts)
+local function tube_create(args)
     local space_opts = {}
-    local if_not_exists = opts.if_not_exists or true
-    space_opts.temporary = opts.temporary or false
+    local if_not_exists = args.if_not_exists or true
+    space_opts.temporary = args.temporary or false
     space_opts.if_not_exists = if_not_exists
-    space_opts.engine = opts.engine or 'memtx'
+    space_opts.engine = args.engine or 'memtx'
     space_opts.format = {
         { name = 'task_id', type = 'unsigned' },
         { name = 'bucket_id', type = 'unsigned' },
@@ -23,7 +68,7 @@ local function tube_create(opts)
         { name = 'index', type = 'unsigned' }
     }
 
-    local space = box.schema.create_space(opts.name, space_opts)
+    local space = box.schema.create_space(args.name, space_opts)
     space:create_index('task_id', {
         type = 'tree',
         parts = { 'task_id' },
@@ -47,6 +92,40 @@ local function tube_create(opts)
         if_not_exists = if_not_exists
     })
 
+    if args.options.content_based_deduplication == true then
+        local deduplication_opts = {}
+        deduplication_opts.temporary = args.options.temporary or false
+        deduplication_opts.if_not_exists = if_not_exists
+        deduplication_opts.engine = args.options.engine or 'memtx'
+        deduplication_opts.format = {
+            { name = 'deduplication_id', type = 'string' },
+            { name = 'created', type = 'unsigned' },
+            { name = 'bucket_id', type = 'unsigned' }
+        }
+        local deduplication = box.schema.create_space(args.name .. "_deduplication", deduplication_opts)
+        deduplication:create_index('deduplication_id', {
+            type = 'tree',
+            parts = { 'deduplication_id' },
+            unique = true,
+            if_not_exists = if_not_exists
+        })
+        deduplication:create_index('created', {
+            type = 'tree',
+            parts = { 'created' },
+            unique = false,
+            if_not_exists = if_not_exists
+        })
+        deduplication:create_index('bucket_id', {
+            type = 'tree',
+            parts = { 'bucket_id' },
+            unique = false,
+            if_not_exists = if_not_exists
+        })
+
+        -- run fiber for deduplication event
+        fiber.create(fiber_common, args.name .. "_deduplication")
+    end
+
     return space
 end
 
@@ -54,8 +133,16 @@ local function tube_drop(tube_name)
     box.space[tube_name]:drop()
 end
 
+local function get_space_by_name(name)
+    return box.space[name]
+end
+
 local function get_space(args)
-    return box.space[args.tube_name]
+    return get_space_by_name(args.tube_name)
+end
+
+local function get_deduplication_space(args)
+    return get_space_by_name(args.tube_name .. '_deduplication')
 end
 
 local function get_index(args)
@@ -74,6 +161,13 @@ end
 
 -- put task in space
 function method.put(args)
+    if args.message_deduplication_id ~= nil or args.options.message_deduplication_id ~= nil then
+        local key = args.message_deduplication_id or args.options.message_deduplication_id
+        local space = get_deduplication_space(args)
+        if space ~= nil then
+            space:insert {key, time.cur(), args.bucket_id}
+        end
+    end
     local idx = get_index(args)
     local task_id = utils.pack_task_id(args.bucket_id, args.bucket_count, idx)
     local task = get_space(args):insert { task_id, args.bucket_id, state.READY, args.data, idx }
