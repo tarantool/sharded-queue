@@ -106,6 +106,7 @@ local function fiber_iteration(tube_name, processed)
 
     if estimated > 0 or processed > 1000 then
         estimated = estimated > 0 and estimated or 0
+        processed = 0
         wc_wait(tube_name, estimated)
     end
 
