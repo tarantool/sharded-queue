@@ -11,10 +11,10 @@ local method = {}
 
 local function tube_create(opts)
     local space_opts = {}
-    local if_not_exists = opts.if_not_exists or true
-    space_opts.temporary = opts.temporary or false
+    local if_not_exists = opts.options.if_not_exists or true
+    space_opts.temporary = opts.options.temporary or false
     space_opts.if_not_exists = if_not_exists
-    space_opts.engine = opts.engine or 'memtx'
+    space_opts.engine = opts.options.engine or 'memtx'
     space_opts.format = {
         { name = 'task_id', type = 'unsigned' },
         { name = 'bucket_id', type = 'unsigned' },

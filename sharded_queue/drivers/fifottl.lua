@@ -107,6 +107,7 @@ local function fiber_iteration(tube_name, processed)
     if estimated > 0 or processed > 1000 then
         estimated = estimated > 0 and estimated or 0
         wc_wait(tube_name, estimated)
+        processed = 0
     end
 
     return processed
@@ -124,6 +125,9 @@ local function fiber_common(tube_name)
             if not ok and not (ret.code == box.error.READONLY) then
                 return 1
             elseif ok then
+                if processed == ret then
+                    fiber.yield()
+                end
                 processed = ret
             end
         else
