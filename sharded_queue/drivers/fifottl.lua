@@ -262,7 +262,26 @@ local function tube_create(args)
     fiber.create(fiber_common, args.name)
 end
 
+local function get_space_by_name(name)
+    return box.space[name]
+end
+
+local function get_deduplication_space(args)
+    return get_space_by_name(args.tube_name .. deduplication_suffix)
+end
+
+local function kill_fiber(tube_name)
+    local fibers = fiber.info()
+    for id, v in pairs(fibers) do
+        if v.name == tube_name then
+            fiber.kill(id)
+            return
+        end
+    end
+end
+
 local function tube_drop(tube_name)
+    kill_fiber(tube_name)
     box.space[tube_name]:drop()
     local space = get_space_by_name(tube_name .. deduplication_suffix)
     if space ~= nil then
@@ -282,14 +301,6 @@ end
 local function normalize_task(task)
     if task == nil then return nil end
     return { task.task_id, task.status, task.data }
-end
-
-local function get_space_by_name(name)
-    return box.space[name]
-end
-
-local function get_deduplication_space(args)
-    return get_space_by_name(args.tube_name .. deduplication_suffix)
 end
 
 local method = {}

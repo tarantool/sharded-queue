@@ -142,10 +142,21 @@ local function get_deduplication_space(args)
     return get_space_by_name(args.tube_name .. deduplication_suffix)
 end
 
+local function kill_fiber(tube_name)
+    local fibers = fiber.info()
+    for id, v in pairs(fibers) do
+        if v.name == tube_name then
+            fiber.kill(id)
+            return
+        end
+    end
+end
+
 local function tube_drop(tube_name)
     box.space[tube_name]:drop()
     local space = get_space_by_name(tube_name .. deduplication_suffix)
     if space ~= nil then
+        kill_fiber(tube_name .. deduplication_suffix)
         space:drop()
     end
 end
