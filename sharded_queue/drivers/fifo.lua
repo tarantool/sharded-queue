@@ -53,6 +53,7 @@ local function fiber_common(tube_name)
 end
 
 local method = {}
+local deduplication_suffix = '_deduplication'
 
 local function tube_create(args)
     local space_opts = {}
@@ -102,7 +103,7 @@ local function tube_create(args)
             { name = 'created', type = 'unsigned' },
             { name = 'bucket_id', type = 'unsigned' }
         }
-        local deduplication = box.schema.create_space(args.name .. "_deduplication", deduplication_opts)
+        local deduplication = box.schema.create_space(args.name .. deduplication_suffix, deduplication_opts)
         deduplication:create_index('deduplication_id', {
             type = 'tree',
             parts = { 'deduplication_id' },
@@ -123,14 +124,10 @@ local function tube_create(args)
         })
 
         -- run fiber for deduplication event
-        fiber.create(fiber_common, args.name .. "_deduplication")
+        fiber.create(fiber_common, args.name .. deduplication_suffix)
     end
 
     return space
-end
-
-local function tube_drop(tube_name)
-    box.space[tube_name]:drop()
 end
 
 local function get_space_by_name(name)
@@ -142,7 +139,15 @@ local function get_space(args)
 end
 
 local function get_deduplication_space(args)
-    return get_space_by_name(args.tube_name .. '_deduplication')
+    return get_space_by_name(args.tube_name .. deduplication_suffix)
+end
+
+local function tube_drop(tube_name)
+    box.space[tube_name]:drop()
+    local space = get_space_by_name(tube_name .. deduplication_suffix)
+    if space ~= nil then
+        space:drop()
+    end
 end
 
 local function get_index(args)

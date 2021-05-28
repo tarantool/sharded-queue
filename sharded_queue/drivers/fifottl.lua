@@ -24,6 +24,8 @@ local dedup_index = {
     bucket_id         = 3
 }
 
+local deduplication_suffix = '_deduplication'
+
 local function update_stat(tube_name, name)
     statistics.update(tube_name, name, '+', 1)
 end
@@ -111,7 +113,7 @@ local function fiber_iteration(tube_name, processed)
     end
 
     -- delete old tasks
-    local dedup_space = box.space[tube_name .. "_deduplication"]
+    local dedup_space = box.space[tube_name .. deduplication_suffix]
     if dedup_space ~= nil then
         task = dedup_space.index.created:min()
         if task then
@@ -235,7 +237,7 @@ local function tube_create(args)
             { name = 'created', type = 'unsigned' },
             { name = 'bucket_id', type = 'unsigned' }
         }
-        local deduplication = box.schema.create_space(args.name .. "_deduplication", deduplication_opts)
+        local deduplication = box.schema.create_space(args.name .. deduplication_suffix, deduplication_opts)
         deduplication:create_index('deduplication_id', {
             type = 'tree',
             parts = { 'deduplication_id' },
@@ -262,6 +264,10 @@ end
 
 local function tube_drop(tube_name)
     box.space[tube_name]:drop()
+    local space = get_space_by_name(tube_name .. deduplication_suffix)
+    if space ~= nil then
+        space:drop()
+    end
 end
 
 local function get_index(tube_name, bucket_id)
@@ -283,7 +289,7 @@ local function get_space_by_name(name)
 end
 
 local function get_deduplication_space(args)
-    return get_space_by_name(args.tube_name .. '_deduplication')
+    return get_space_by_name(args.tube_name .. deduplication_suffix)
 end
 
 local method = {}
