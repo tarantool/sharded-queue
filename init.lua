@@ -1,25 +1,33 @@
 #!/usr/bin/env tarantool
 
 require('strict').on()
-local log = require('log')
 local cartridge = require('cartridge')
-local console = require('console')
 
-local binary_port = os.getenv('BINARY_PORT') or '3301'
-local http_port = os.getenv('HTTP_PORT') or '8080'
-local hostname = os.getenv('HOSTNAME') or 'localhost'
-local console_sock = os.getenv("CONSOLE_SOCK")
+if package.setsearchroot ~= nil then
+    package.setsearchroot()
+else
+    -- Workaround for rocks loading in tarantool 1.10
+    -- It can be removed in tarantool > 2.2
+    -- By default, when you do require('mymodule'), tarantool looks into
+    -- the current working directory and whatever is specified in
+    -- package.path and package.cpath. If you run your app while in the
+    -- root directory of that app, everything goes fine, but if you try to
+    -- start your app with "tarantool myapp/init.lua", it will fail to load
+    -- its modules, and modules from myapp/.rocks.
+    local fio = require('fio')
+    local app_dir = fio.abspath(fio.dirname(arg[0]))
+    package.path = app_dir .. '/?.lua;' .. package.path
+    package.path = app_dir .. '/?/init.lua;' .. package.path
+    package.path = app_dir .. '/.rocks/share/tarantool/?.lua;' .. package.path
+    package.path = app_dir .. '/.rocks/share/tarantool/?/init.lua;' .. package.path
+    package.cpath = app_dir .. '/?.so;' .. package.cpath
+    package.cpath = app_dir .. '/?.dylib;' .. package.cpath
+    package.cpath = app_dir .. '/.rocks/lib/tarantool/?.so;' .. package.cpath
+    package.cpath = app_dir .. '/.rocks/lib/tarantool/?.dylib;' .. package.cpath
+end
 
 local ok, err = cartridge.cfg({
-    alias = os.getenv('ALIAS'),
-    workdir = './dev/output-' .. binary_port,
-    advertise_uri = hostname .. ':' .. binary_port,
-    cluster_cookie = os.getenv('TARANTOOL_CLUSTER_COOKIE') or 'sharded-queue-cookie',
-    bucket_count = 3000,
-    http_port = http_port,
     roles = {
-        'cartridge.roles.vshard-storage',
-        'cartridge.roles.vshard-router',
         'sharded_queue.storage',
         'sharded_queue.api'
     },
@@ -27,7 +35,3 @@ local ok, err = cartridge.cfg({
 })
 
 assert(ok, tostring(err))
-
-if console_sock ~= nil then
-    console.listen('unix/:' .. console_sock)
-end

@@ -12,7 +12,7 @@ bootstrap:
 
 .PHONY: build
 build:
-	tarantoolctl rocks make sharded-queue-scm-1.rockspec
+	cartridge build
 
 .PHONY: lint
 lint:
