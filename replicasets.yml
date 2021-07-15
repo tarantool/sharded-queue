@@ -1,0 +1,20 @@
+router:
+  instances:
+  - router
+  roles:
+  - sharded_queue.api
+s-1:
+  instances:
+  - s1-master
+  - s1-replica
+  roles:
+  - sharded_queue.storage
+s-2:
+  instances:
+  - s2-master
+  - s2-replica
+  roles:
+  - sharded_queue.storage
+  weight: 1
+  all_rw: false
+  vshard_group: default
