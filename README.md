@@ -3,7 +3,7 @@
 
 This module provides cartridge roles implementing of a distributed queue compatible with [Tarantool queue](https://github.com/tarantool/queue) (*fifiottl driver*)
 
-## Installing
+## Usage in a cartridge application
 
 1. Add dependency to your application rockspec
 2. Add roles to your application:
@@ -20,7 +20,15 @@ cartridge.cfg({
 ```
 3. Queue API will be available on all nodes where sharded_queue.api is enabled
 
-## Using
+
+## Usage as a ready-to-deploy service
+
+Just run ```cartridge pack rpm .``` and install resulting package on your target servers.
+
+For more details refer to [cartridge-cli](https://github.com/tarantool/cartridge-cli/)
+
+
+## Usage from client perspective
 
 The good old queue api is located on all instances of the router masters that we launched.
 For a test configuration, this is one router on `localhost:3301`
@@ -61,24 +69,24 @@ tubes:
         driver: my_app.my_driver
 ```
 
-## Running locally
+## Running locally (as an example)
 
 Install dependencies:
 
 ```
-make bootstrap
-tarantoolctl rocks make
+cartridge build
 ```
 
-The script that starts and configures the cartridge is located in `example`
-Run it.
+Start default configuration:
 ```
-./example/configurate.sh
+cartridge start -d
+cartridge replicasets setup --bootstrap-vshard
 ```
 To stop and clear data, say:
 
 ```
-./example/stop.sh
+cartridge stop
+rm -rf ./tmp
 ```
 
 ## Launching tests
@@ -86,6 +94,7 @@ To stop and clear data, say:
 Say:
 
 ```
+make bootstrap
 make test
 ```
 
