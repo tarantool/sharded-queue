@@ -23,7 +23,7 @@ cartridge.cfg({
 
 ## Usage as a ready-to-deploy service
 
-Just run ```cartridge pack rpm .``` and install resulting package on your target servers.
+Just run ```cartridge pack rpm --version 1.0.0 .``` and install resulting package on your target servers.
 
 For more details refer to [cartridge-cli](https://github.com/tarantool/cartridge-cli/)
 
@@ -40,7 +40,7 @@ type 'help' for interactive help
 tarantool> netbox = require('net.box')
 ---
 ...
-tarantool> queue_conn = netbox.connect('localhost:3301', {user = 'admin',password = 'sharded-queue-cookie'})
+tarantool> queue_conn = netbox.connect('localhost:3301', {user = 'admin',password = 'secret-cluster-cookie'})
 ---
 ...
 tarantool> queue_conn:call('queue.create_tube', { 'test_tube' })   
@@ -48,13 +48,11 @@ tarantool> queue_conn:call('queue.create_tube', { 'test_tube' })
 ...
 tarantool> queue_conn:call('queue.tube.test_tube:put', { 'task_1' })
 ---
-- [3653, 652, 'r', 1566228200316049, 0, 3153600000000000, 3153600000000000, 4719828200316049,
-  'task_1', 1]
+- [3653, 'r', 'task_1']
 ...
 tarantool> queue_conn:call('queue.tube.test_tube:take')
 ---
-- [3653, 652, 't', 1566228200316049, 0, 3153600000000000, 3153600000000000, 4719828200316049,
-  'task_1', 1]
+- [3653, 't', 1]
 ...
 
 ```

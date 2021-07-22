@@ -1,7 +1,6 @@
 #!/usr/bin/env tarantool
 
 require('strict').on()
-local cartridge = require('cartridge')
 
 if package.setsearchroot ~= nil then
     package.setsearchroot()
@@ -25,6 +24,8 @@ else
     package.cpath = app_dir .. '/.rocks/lib/tarantool/?.so;' .. package.cpath
     package.cpath = app_dir .. '/.rocks/lib/tarantool/?.dylib;' .. package.cpath
 end
+
+local cartridge = require('cartridge')
 
 local ok, err = cartridge.cfg({
     roles = {
