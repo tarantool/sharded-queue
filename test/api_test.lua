@@ -6,10 +6,16 @@ local g = t.group('api')
 local api = require('sharded_queue.api')
 local config = require('test.helper.config')
 local utils = require('test.helper.utils')
+local is_metrics_supported = utils.is_metrics_supported()
 
 g.before_all(function()
     g.queue_conn = config.cluster:server('queue-router').net_box
     g.queue_conn_ro = config.cluster:server('queue-router-1').net_box
+    g.cfg = g.queue_conn:eval("return require('sharded_queue.api').cfg")
+end)
+
+g.after_each(function()
+    g.queue_conn:eval("require('sharded_queue.api').cfg(...)", {g.cfg})
 end)
 
 g.test_exported_api = function()
@@ -49,6 +55,40 @@ g.test_role_statistics = function()
         :format(tube_name)
     local result = g.queue_conn:eval(cmd)
     t.assert_type(result, 'table')
+end
+
+g.test_create_cfg = function()
+    t.assert_error_msg_contains('a tube name "cfg" is reserved', function()
+        g.queue_conn:call('queue.create_tube', { 'cfg' })
+    end)
+end
+
+g.test_role_cfg_default = function()
+    local cfg = g.queue_conn:eval("return require('sharded_queue.api').cfg")
+    t.assert_equals({metrics = is_metrics_supported}, cfg)
+end
+
+g.test_role_cfg_metrics_switch = function()
+    t.skip_if(not is_metrics_supported, "metrics >= 0.11.0 is not installed")
+
+    local cfg = g.queue_conn:eval("return require('sharded_queue.api').cfg")
+    t.assert_equals({metrics = true}, cfg)
+
+    g.queue_conn:eval("require('sharded_queue.api').cfg(...)", {{metrics = false}})
+    cfg = g.queue_conn:eval("return require('sharded_queue.api').cfg")
+    t.assert_equals({metrics = false}, cfg)
+
+    g.queue_conn:eval("require('sharded_queue.api').cfg(...)", {{metrics = true}})
+    cfg = g.queue_conn:eval("return require('sharded_queue.api').cfg")
+    t.assert_equals({metrics = true}, cfg)
+end
+
+g.test_role_cfg_assignment = function()
+    t.skip_if(not is_metrics_supported, "metrics >= 0.11.0 is not installed")
+
+    t.assert_error_msg_contains('Use api.cfg() instead', function()
+        g.queue_conn:eval("require('sharded_queue.api').cfg['metrics'] = false")
+    end)
 end
 
 g.test_role_statistics_read_only_router = function()

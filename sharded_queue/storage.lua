@@ -21,8 +21,11 @@ local tubes = {}
 local function map_tubes(cfg_tubes)
     local result = {}
     for tube_name, tube_opts in pairs(cfg_tubes) do
-        local driver_name = tube_opts.driver or DEFAULT_DRIVER
-        result[tube_name] = get_driver(driver_name)
+        if tube_name['cfg'] ~= nil or tube_opts.enable == nil then
+            -- do not add 'cfg' as a tube
+            local driver_name = tube_opts.driver or DEFAULT_DRIVER
+            result[tube_name] = get_driver(driver_name)
+        end
     end
     return result
 end
