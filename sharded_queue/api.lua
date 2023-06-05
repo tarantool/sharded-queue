@@ -3,17 +3,37 @@ local vshard = require('vshard')
 local fiber = require('fiber')
 local log = require('log')
 
+local state = require('sharded_queue.state')
 local time = require('sharded_queue.time')
 local utils = require('sharded_queue.utils')
 
 local cartridge_pool = require('cartridge.pool')
 local cartridge_rpc = require('cartridge.rpc')
+local is_metrics_package, metrics = pcall(require, "metrics")
+local is_hotreload_package, hotreload = pcall(require, "cartridge.hotreload")
+
+local stash_names = {
+    cfg = '__sharded_queue_cfg',
+    metrics_stats = '__sharded_queue_metrics_stats',
+}
+
+if is_hotreload_package then
+    for _, name in pairs(stash_names) do
+        hotreload.whitelist_globals({ name })
+    end
+end
+
+-- get a stash instance, initialize if needed
+local function stash_get(name)
+    local instance = rawget(_G, name) or {}
+    rawset(_G, name, instance)
+    return instance
+end
 
 local remote_call = function(method, instance_uri, args, timeout)
     local conn = cartridge_pool.connect(instance_uri)
     return conn:call(method, { args }, { timeout = timeout })
 end
-
 
 local function validate_options(options)
     if not options then return true end
@@ -402,8 +422,117 @@ function sharded_tube.drop(self)
 end
 
 local sharded_queue = {
-    tube = {}
+    tube = {},
+    cfg = stash_get(stash_names.cfg),
+    metrics_stats = stash_get(stash_names.metrics_stats),
 }
+if sharded_queue.cfg.metrics == nil then
+    sharded_queue.cfg.metrics = true
+end
+
+local function is_metrics_v_0_11_installed()
+    if not is_metrics_package or metrics.unregister_callback == nil then
+        return false
+    end
+    local counter = require('metrics.collectors.counter')
+    return counter.remove and true or false
+end
+
+local function metrics_create_collectors()
+    return {
+        calls = {
+            collector = metrics.counter(
+                "sharded_queue_calls",
+                "sharded_queue's number of calls"
+            ),
+            values = {},
+        },
+        tasks = {
+            collector = metrics.gauge(
+                "sharded_queue_tasks",
+                "sharded_queue's number of tasks"
+            )
+        },
+    }
+end
+
+local function metrics_disable()
+    if sharded_queue.metrics_stats.callback then
+        metrics.unregister_callback(sharded_queue.metrics_stats.callback)
+    end
+    sharded_queue.metrics_stats.callback = nil
+
+    if sharded_queue.metrics_stats.collectors then
+        for _, c in pairs(sharded_queue.metrics_stats.collectors) do
+            metrics.registry:unregister(c.collector)
+        end
+    end
+    sharded_queue.metrics_stats.collectors = nil
+end
+
+local function metrics_enable()
+    -- Drop all collectors and a callback.
+    metrics_disable()
+
+    -- Set all collectors and the callback.
+    sharded_queue.metrics_stats.collectors = metrics_create_collectors()
+    local callback = function()
+        local metrics_stats = sharded_queue.metrics_stats
+        for tube_name, _ in pairs(sharded_queue.tube) do
+            local stat = sharded_queue.statistics(tube_name)
+            local collectors = metrics_stats.collectors
+            if collectors.calls.values[tube_name] == nil then
+                collectors.calls.values[tube_name] = {}
+            end
+            for k, v in pairs(stat.calls) do
+                local prev = metrics_stats.collectors.calls.values[tube_name][k] or 0
+                local inc = v - prev
+                metrics_stats.collectors.calls.collector:inc(inc, {
+                    name = tube_name,
+                    status = k,
+                })
+                metrics_stats.collectors.calls.values[tube_name][k] = v
+            end
+            for k, v in pairs(stat.tasks) do
+                metrics_stats.collectors.tasks.collector:set(v, {
+                    name = tube_name,
+                    status = k,
+                })
+            end
+        end
+    end
+
+    metrics.register_callback(callback)
+    sharded_queue.metrics_stats.callback = callback
+    return true
+end
+
+if sharded_queue.cfg.metrics then
+    sharded_queue.cfg.metrics = is_metrics_v_0_11_installed()
+end
+
+function sharded_queue.cfg_call(_, options)
+    options = options or {}
+    if options.metrics == nil then
+        return
+    end
+
+    if type(options.metrics) ~= 'boolean' then
+        error('"metrics" must be a boolean')
+    end
+
+    if sharded_queue.cfg.metrics ~= options.metrics then
+        local tubes = cartridge.config_get_deepcopy('tubes') or {}
+
+        if tubes['cfg'] ~= nil and tubes['cfg'].metrics == nil then
+            error('tube "cfg" exist, unable to update a default configuration')
+        end
+
+        tubes['cfg'] = {metrics = options.metrics}
+        local ok, err = cartridge.config_patch_clusterwide({ tubes = tubes })
+        if not ok then error(err) end
+    end
+end
 
 function sharded_queue.statistics(tube_name)
     if not tube_name then
@@ -448,6 +577,10 @@ end
 function sharded_queue.create_tube(tube_name, options)
     local tubes = cartridge.config_get_deepcopy('tubes') or {}
 
+    if tube_name == 'cfg' then
+        error('a tube name "cfg" is reserved')
+    end
+
     if tubes[tube_name] ~= nil then
         -- already exist --
         return nil
@@ -472,12 +605,34 @@ local function init(opts)
     rawset(_G, 'queue', sharded_queue)
 end
 
+local function validate_config(cfg)
+    if cfg['cfg'] == nil then
+        return
+    end
+
+    cfg = cfg['cfg']
+    if type(cfg) ~= 'table' then
+        error('"cfg" must be a table')
+    end
+    if cfg.metrics and type(cfg.metrics) ~= 'boolean' then
+        error('"cfg.metrics" must be a boolean')
+    end
+    if cfg.metrics and cfg.metrics == true then
+        if not is_metrics_v_0_11_installed() then
+            error("metrics >= 0.11.0 is required")
+        end
+    end
+end
+
 local function apply_config(cfg, opts)
     local cfg_tubes = cfg.tubes or {}
-
     -- try init tubes --
     for tube_name, options in pairs(cfg_tubes) do
-        if sharded_queue.tube[tube_name] == nil then
+        if tube_name == 'cfg' then
+            if options.metrics ~= nil then
+                sharded_queue.cfg.metrics = options.metrics and true or false
+            end
+        elseif sharded_queue.tube[tube_name] == nil then
             local self = setmetatable({
                 tube_name = tube_name,
                 wait_max = options.wait_max,
@@ -492,10 +647,16 @@ local function apply_config(cfg, opts)
 
     -- try drop tubes --
     for tube_name, _ in pairs(sharded_queue.tube) do
-        if cfg_tubes[tube_name] == nil then
+        if tube_name ~= 'cfg' and cfg_tubes[tube_name] == nil then
             setmetatable(sharded_queue.tube[tube_name], nil)
             sharded_queue.tube[tube_name] = nil
         end
+    end
+
+    if sharded_queue.cfg.metrics then
+        metrics_enable()
+    else
+        metrics_disable()
     end
 end
 
@@ -523,6 +684,13 @@ return {
     kick = queue_action_wrapper('kick'),
     peek = queue_action_wrapper('peek'),
     drop = queue_action_wrapper('drop'),
+
+    cfg = setmetatable({}, {
+        __index = sharded_queue.cfg,
+        __newindex = function() error("Use api.cfg() instead", 2) end,
+        __call = sharded_queue.cfg_call,
+        __serialize = function() return sharded_queue.cfg end,
+    }),
     statistics = sharded_queue.statistics,
     _VERSION = require('sharded_queue.version'),
 

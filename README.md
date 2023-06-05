@@ -65,7 +65,16 @@ tubes:
         ttl: 60
      tube_2:
         driver: my_app.my_driver
+     cfg:
+        metrics: false
 ```
+
+Be careful, `cfg` field in a cluster-wide config acts as a configuration
+value for `api.cfg()` call. These configuration options are currently
+supported:
+
+* `metrics` - enable or disable stats collection by metrics.
+  metrics >= 0.11.0 is required. It is enabled by default.
 
 ## Running locally (as an example)
 
