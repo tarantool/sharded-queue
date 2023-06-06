@@ -119,6 +119,8 @@ return {
     init = init,
     apply_config = apply_config,
     validate_config = validate_config,
+    _VERSION = require('sharded_queue.version'),
+
     dependencies = {
         'cartridge.roles.vshard-storage',
     },

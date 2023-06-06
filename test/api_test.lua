@@ -72,3 +72,19 @@ g.test_role_statistics_read_only_router = function()
     t.assert_type(result_ro, 'table')
     t.assert_equals(result_m, result_ro)
 end
+
+g.test_api_version = function()
+    local api_conn = config.cluster:server('queue-router').net_box
+    local storage_conn = config.cluster:server('queue-storage-1-0').net_box
+
+    local api_version = api_conn:eval(
+        "return require('sharded_queue.api')._VERSION"
+    )
+    local storage_version = storage_conn:eval(
+        "return require('sharded_queue.storage')._VERSION"
+    )
+
+    t.assert_equals(api_version, storage_version)
+    t.assert_not_equals(string.find(api_version, "^%d+%.%d+%.%d+$"), nil)
+    t.assert_not_equals(string.find(storage_version, "^%d+%.%d+%.%d+$"), nil)
+end

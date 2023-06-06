@@ -524,6 +524,7 @@ return {
     peek = queue_action_wrapper('peek'),
     drop = queue_action_wrapper('drop'),
     statistics = sharded_queue.statistics,
+    _VERSION = require('sharded_queue.version'),
 
     dependencies = {
         'cartridge.roles.vshard-router',
