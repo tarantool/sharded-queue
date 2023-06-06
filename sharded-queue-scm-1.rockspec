@@ -28,6 +28,7 @@ build = {
             ['sharded_queue.utils'] = 'sharded_queue/utils.lua',
             ['sharded_queue.state'] = 'sharded_queue/state.lua',
             ['sharded_queue.statistics'] = 'sharded_queue/statistics.lua',
+            ['sharded_queue.version'] = 'sharded_queue/version.lua',
         },
     },
     build_pass = false,
