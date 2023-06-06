@@ -6,7 +6,6 @@ source  = {
 }
 dependencies = {
     'lua >= 5.1';
-    'checks >= 3.0.0',
     'cartridge >= 2.0.0, < 3.0.0',
 }
 
@@ -31,8 +30,6 @@ build = {
             ['sharded_queue.statistics'] = 'sharded_queue/statistics.lua',
         },
     },
-    build_variables = {
-        version = 'scm-1',
-    },
+    build_pass = false,
     install_pass = false,
 }

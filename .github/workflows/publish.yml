@@ -1,0 +1,69 @@
+name: publish
+
+on:
+  push:
+    branches: [master]
+    tags: ['*']
+
+jobs:
+  publish-rockspec-scm-1:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup tt
+        run: |
+          curl -L https://tarantool.io/release/2/installer.sh | sudo bash
+          sudo apt install -y tarantool tt
+
+      - run: tt rocks install sharded-queue-scm-1.rockspec
+
+      - uses: tarantool/rocks.tarantool.org/github-action@master
+        with:
+          auth: ${{ secrets.ROCKS_AUTH }}
+          files: sharded-queue-scm-1.rockspec
+
+  publish-rockspec-tag:
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+
+      # Create a rockspec for the release.
+      - run: printf '%s=%s\n' TAG "${GITHUB_REF##*/}" >> "${GITHUB_ENV}"
+      - run: sed -E
+          -e "s/branch = '.+'/tag = '${{ env.TAG }}'/g"
+          -e "s/version = '.+'/version = '${{ env.TAG }}-1'/g"
+          sharded-queue-scm-1.rockspec > sharded-queue-${{ env.TAG }}-1.rockspec
+
+      # Create a rock for the release (.all.rock).
+      #
+      # `tt rocks pack <module_name> <version>` creates
+      # .all.rock tarball. It speeds up
+      # `tt rocks install <module_name> <version>` and
+      # frees it from dependency on git.
+      #
+      # Don't confuse this command with
+      # `tt rocks pack <rockspec>`, which creates a
+      # source tarball (.src.rock).
+      #
+      # Important: Don't upload binary rocks to
+      # rocks.tarantool.org. Lua/C modules should be packed into
+      # .src.rock instead. See [1] for description of rock types.
+      #
+      # [1]: https://github.com/luarocks/luarocks/wiki/Types-of-rocks
+      - name: Setup tt
+        run: |
+          curl -L https://tarantool.io/release/2/installer.sh | sudo bash
+          sudo apt install -y tarantool tt
+      - run: tt rocks install sharded-queue-${{ env.TAG }}-1.rockspec
+      - run: tt rocks pack sharded-queue ${{ env.TAG }}
+
+      # Upload .rockspec and .all.rock.
+      - uses: tarantool/rocks.tarantool.org/github-action@master
+        with:
+          auth: ${{ secrets.ROCKS_AUTH }}
+          files: |
+            sharded-queue-${{ env.TAG }}-1.rockspec
+            sharded-queue-${{ env.TAG }}-1.all.rock
