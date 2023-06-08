@@ -1,25 +1,62 @@
-#! /bin/bash
+# This way everything works as expected ever for
+# `make -C /path/to/project` or
+# `make -f /path/to/project/Makefile`.
+MAKEFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
+PROJECT_DIR := $(patsubst %/,%,$(dir $(MAKEFILE_PATH)))
+LUACOV_REPORT := $(PROJECT_DIR)/luacov.report.out
 
-.PHONY: all doc
-all: doc
-	mkdir -p doc
+# Look for .rocks/bin directories upward starting from the project
+# directory.
+#
+# It is useful for luacheck, luatest and LDoc.
+#
+# Note: The PROJECT_DIR holds a real path.
+define ENABLE_ROCKS_BIN
+	$(if $(wildcard $1/.rocks/bin),
+		$(eval ROCKS_PATH := $(if $(ROCKS_PATH),$(ROCKS_PATH):,)$1/.rocks/bin)
+	)
+	$(if $1,
+		$(eval $(call ENABLE_ROCKS_BIN,$(patsubst %/,%,$(dir $1))))
+	)
+endef
+$(eval $(call ENABLE_ROCKS_BIN,$(PROJECT_DIR)))
 
-.PHONY: bootstrap
-bootstrap:
-	tarantoolctl rocks install luacheck 0.25.0
-	tarantoolctl rocks install luatest 0.5.0
-	tarantoolctl rocks install luacov 0.13.0
+# Add found .rocks/bin to PATH.
+PATH := $(if $(ROCKS_PATH),$(ROCKS_PATH):$(PATH),$(PATH))
+
+TTCTL := tt
+ifeq (,$(shell which tt 2>/dev/null))
+	TTCTL := tarantoolctl
+endif
+
+.PHONY: default
+default:
+	false
 
 .PHONY: build
 build:
 	cartridge build
 
+.PHONY: deps
+deps:
+	$(TTCTL) rocks install luacheck 0.26.0
+	$(TTCTL) rocks install luacov 0.13.0
+	$(TTCTL) rocks install luacov-coveralls 0.2.3-1 --server=http://luarocks.org
+	$(TTCTL) rocks install luatest 0.5.7
+	$(TTCTL) rocks install cartridge 2.7.9
+
 .PHONY: lint
 lint:
-	.rocks/bin/luacheck .
+	luacheck .
 
 .PHONY: test
-test: lint
+test:
+	luatest -v --shuffle all
+
+.PHONY: coverage
+coverage:
 	rm -f luacov*
-	.rocks/bin/luatest -v --shuffle all --coverage
-	.rocks/bin/luacov . && grep -A999 '^Summary' luacov.report.out
+	luatest -v --shuffle all --coverage
+	sed "s|$(PROJECT_DIR)/||" -i luacov.stats.out
+	luacov sharded_queue
+	grep -A999 '^Summary' $(LUACOV_REPORT)

@@ -1,0 +1,55 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    # We want to run on external PRs, but not on our own internal
+    # PRs as they'll be run by the push to the branch.
+    #
+    # The main trick is described here:
+    # https://github.com/Dart-Code/Dart-Code/pull/2375
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+
+    strategy:
+      fail-fast: false
+      matrix:
+        tarantool:
+          - '1.10'
+          - '2.8'
+        coveralls: [false]
+        include:
+          - tarantool: '2.11'
+            coveralls: true
+
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Install tarantool ${{ matrix.tarantool }}
+        uses: tarantool/setup-tarantool@v2
+        with:
+          tarantool-version: ${{ matrix.tarantool }}
+
+      - name: Clone the module
+        uses: actions/checkout@v3
+
+      - name: Install requirements
+        run: make deps
+
+      - name: Run linter
+        run: make lint
+
+      - name: Run tests
+        run: make test
+
+      - name: Run tests with coverage
+        run: make coverage
+        if: ${{ matrix.coveralls }}
+
+      - name: Send code coverage to coveralls.io
+        run: .rocks/bin/luacov-coveralls -i sharded_queue
+        if: ${{ matrix.coveralls }}
+        env:
+          COVERALLS_REPO_TOKEN: ${{ github.token }}
