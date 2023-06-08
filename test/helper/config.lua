@@ -12,7 +12,7 @@ config.unitdir = fio.pathjoin(config.datadir, 'unit')
 
 config.cluster = cartridge_helpers.Cluster:new({
     datadir = config.datadir,
-    server_command = fio.pathjoin(config.root, 'init.lua'),
+    server_command = fio.pathjoin(config.root, 'test', 'entrypoint', 'init.lua'),
     use_vshard = true,
     replicasets = {
         {
@@ -24,13 +24,15 @@ config.cluster = cartridge_helpers.Cluster:new({
                 {
                     instance_uuid = 'aaaaaaaa-aaaa-4000-b000-000000000001',
                     alias = 'queue-router',
-                    advertise_port = 3301,
+                    advertise_port = 3311,
+                    http_port = 9081,
                     cluster_cookie = 'sharded-queue-cookie',
                 },
                 {
                     instance_uuid = 'aaaaaaaa-aaaa-4000-b000-000000000002',
                     alias = 'queue-router-1',
-                    advertise_port = 3302,
+                    advertise_port = 3312,
+                    http_port = 9082,
                     cluster_cookie = 'sharded-queue-cookie',
                 }
             },
@@ -44,13 +46,15 @@ config.cluster = cartridge_helpers.Cluster:new({
                 {
                     instance_uuid = 'bbbbbbbb-bbbb-4000-b000-000000000001',
                     alias = 'queue-storage-1-0',
-                    advertise_port = 3303,
+                    advertise_port = 3313,
+                    http_port = 9083,
                     cluster_cookie = 'sharded-queue-cookie',
                 },
                 {
                     instance_uuid = 'bbbbbbbb-bbbb-4000-b000-000000000002',
                     alias = 'queue-storage-1-1',
-                    advertise_port = 3304,
+                    advertise_port = 3314,
+                    http_port = 9084,
                     cluster_cookie = 'sharded-queue-cookie',
                 },
             }
@@ -62,13 +66,15 @@ config.cluster = cartridge_helpers.Cluster:new({
                 {
                     instance_uuid = 'cccccccc-cccc-4000-b000-000000000001',
                     alias = 'queue-storage-2-0',
-                    advertise_port = 3305,
+                    advertise_port = 3315,
+                    http_port = 9085,
                     cluster_cookie = 'sharded-queue-cookie',
                 },
                 {
                     instance_uuid = 'cccccccc-cccc-4000-b000-000000000002',
                     alias = 'queue-storage-2-1',
-                    advertise_port = 3306,
+                    advertise_port = 3316,
+                    http_port = 9086,
                     cluster_cookie = 'sharded-queue-cookie',
                 },
             },
