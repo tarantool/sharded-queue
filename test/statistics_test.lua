@@ -40,7 +40,7 @@ function g.test_statistics()
     t.assert_equals(cur_stat.tasks.delayed, task_count)
     t.assert_equals(cur_stat.calls.put, task_count)
 
-    fiber.sleep(3.01)
+    fiber.sleep(3.5)
 
     -- after delay
     cur_stat = g.queue_conn:call('queue.statistics', { tube_name })
