@@ -92,7 +92,7 @@ rm -rf ./tmp
 Say:
 
 ```
-make bootstrap
+make deps
 make test
 ```
 
@@ -116,7 +116,7 @@ make test
     Examples:
 
     ```lua
-        conn:call('queue.create_tube', { mytube, {
+    conn:call('queue.create_tube', { mytube, {
         log_request = true, -- log all operations
     }})
 
