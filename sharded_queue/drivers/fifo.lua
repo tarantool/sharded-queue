@@ -9,13 +9,13 @@ end
 
 local method = {}
 
-local function tube_create(opts)
-    local space_opts = {}
-    local if_not_exists = opts.if_not_exists or true
-    space_opts.temporary = opts.temporary or false
-    space_opts.if_not_exists = if_not_exists
-    space_opts.engine = opts.engine or 'memtx'
-    space_opts.format = {
+local function tube_create(args)
+    local space_options = {}
+    local if_not_exists = args.options.if_not_exists or true
+    space_options.if_not_exists = if_not_exists
+    space_options.temporary = args.options.temporary or false
+    space_options.engine = args.options.engine or 'memtx'
+    space_options.format = {
         { name = 'task_id', type = 'unsigned' },
         { name = 'bucket_id', type = 'unsigned' },
         { name = 'status', type = 'string' },
@@ -23,7 +23,7 @@ local function tube_create(opts)
         { name = 'index', type = 'unsigned' }
     }
 
-    local space = box.schema.create_space(opts.name, space_opts)
+    local space = box.schema.create_space(args.name, space_options)
     space:create_index('task_id', {
         type = 'tree',
         parts = { 'task_id' },

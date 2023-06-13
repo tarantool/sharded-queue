@@ -136,13 +136,10 @@ end
 
 local function tube_create(args)
     local space_options = {}
-
     local if_not_exists = args.options.if_not_exists or true
-
     space_options.if_not_exists = if_not_exists
     space_options.temporary = args.options.temporary or false
     space_options.engine = args.options.engine or 'memtx'
-
     space_options.format = {
         { 'task_id',    'unsigned' },
         { 'bucket_id',  'unsigned' },
