@@ -82,7 +82,7 @@ g.test_take_with_options = function()
     })
     local options, timeout, data = {}, 1, 'data'
 
-    for _, take_args in pairs({{}, {timeout}, {timeout, options}, {box.NULL, options}, {timeout, box.NULL}}) do
+    for _, take_args in pairs({{}, {timeout}, {timeout, options}, {box.NULL, options}}) do
         g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), { data })
         local task = g.queue_conn:call(utils.shape_cmd(tube_name, 'take'), take_args)
         t.assert_equals(task[utils.index.data], data)

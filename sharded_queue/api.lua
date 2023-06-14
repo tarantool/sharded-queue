@@ -53,7 +53,7 @@ function sharded_tube.put(self, data, options)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id = math.random(bucket_count)
 
-    options = options or {}
+    options = table.deepcopy(options or {})
 
     if options.priority == nil and options.pri ~= nil then
         options.priority = options.pri
@@ -106,10 +106,7 @@ end
 
 function sharded_tube.take(self, timeout, options)
     -- take task from tube --
-    if options == nil then
-        options = {}
-    end
-
+    options = table.deepcopy(options or {})
     options.tube_name = self.tube_name
 
     options.extra = {
@@ -189,21 +186,21 @@ function sharded_tube.delete(self, task_id, options)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
-    local extra = {
-        log_request = utils.normalize.log_request(options and options.log_request) or self.log_request,
+    options = table.deepcopy(options or {})
+    options.tube_name = self.tube_name
+    options.task_id = task_id
+
+    options.extra = {
+        log_request = utils.normalize.log_request(options.log_request) or self.log_request,
     }
 
     local task, err = vshard.router.call(bucket_id, 'write', 'tube_delete', {
-        {
-            tube_name = self.tube_name,
-            task_id = task_id,
-            extra = extra,
-        }
+        options
     })
     -- re-raise storage errors
     if err ~= nil then error(err) end
 
-    if extra.log_request then
+    if options.extra.log_request then
         log_task('delete', task)
     end
 
@@ -216,17 +213,16 @@ function sharded_tube.release(self, task_id, options)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
-    options = options or {}
+    options = table.deepcopy(options or {})
+    options.tube_name = self.tube_name
+    options.task_id = task_id
+
     options.extra = {
         log_request = utils.normalize.log_request(options.log_request) or self.log_request,
     }
 
     local task, err = vshard.router.call(bucket_id, 'write', 'tube_release', {
-        {
-            tube_name = self.tube_name,
-            task_id = task_id,
-            options = options,
-        }
+        options
     })
     -- re-raise storage errors
     if err ~= nil then error(err) end
@@ -252,18 +248,17 @@ function sharded_tube.touch(self, task_id, delta, options)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
-    options = options or {}
+    options = table.deepcopy(options or {})
+    options.tube_name = self.tube_name
+    options.task_id = task_id
+    options.delta = delta
+
     options.extra = {
         log_request = utils.normalize.log_request(options.log_request) or self.log_request,
     }
 
     local task, err = vshard.router.call(bucket_id, 'write', 'tube_touch', {
-        {
-            tube_name = self.tube_name,
-            task_id = task_id,
-            delta = delta,
-            options = options,
-        }
+        options
     })
     -- re-raise storage errors
     if err ~= nil then error(err) end
@@ -281,26 +276,26 @@ function sharded_tube.ack(self, task_id, options)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
-    local extra = {
-        log_request = utils.normalize.log_request(options and options.log_request) or self.log_request,
+    options = table.deepcopy(options or {})
+    options.tube_name = self.tube_name
+    options.task_id = task_id
+
+    options.extra = {
+        log_request = utils.normalize.log_request(options.log_request) or self.log_request,
     }
 
-    if extra.log_request then
+    if options.extra.log_request then
         log.info(("Router[%d] ack: call id %d, bucket %d")
             :format(fiber.self():id(), task_id, bucket_id))
     end
 
     local task, err = vshard.router.call(bucket_id, 'write', 'tube_ack', {
-        {
-            tube_name = self.tube_name,
-            task_id = task_id,
-            extra = extra,
-        }
+        options
     })
     -- re-raise storage errors
     if err ~= nil then error(err) end
 
-    if extra.log_request then
+    if options.extra.log_request then
         log_task('ack', task)
     end
 
@@ -313,17 +308,16 @@ function sharded_tube.bury(self, task_id, options)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
-    options = options or {}
+    options = table.deepcopy(options or {})
+    options.tube_name = self.tube_name
+    options.task_id = task_id
+
     options.extra = {
         log_request = utils.normalize.log_request(options.log_request) or self.log_request,
     }
 
     local task, err = vshard.router.call(bucket_id, 'write', 'tube_bury', {
-        {
-            tube_name = self.tube_name,
-            task_id = task_id,
-            options = options,
-        }
+        options
     })
     -- re-raise storage errors
     if err ~= nil then error(err) end
@@ -346,13 +340,11 @@ function sharded_tube.kick(self, count, options)
 
     local kicked_count = 0 -- count kicked task
     for _, instance_uri in ipairs(storages) do
-        local ok, k = pcall(remote_call, 'tube_kick',
-            instance_uri,
-            {
-                tube_name = self.tube_name,
-                count     = count - kicked_count,
-                options   = options,
-            })
+        local opts = table.deepcopy(options or {})
+        opts.tube_name = self.tube_name
+        opts.count = count - kicked_count
+
+        local ok, k = pcall(remote_call, 'tube_kick', instance_uri, opts)
         if not ok then
             log.error(k)
             return kicked_count
@@ -372,17 +364,16 @@ function sharded_tube.peek(self, task_id, options)
     local bucket_count = vshard.router.bucket_count()
     local bucket_id, _ = utils.unpack_task_id(task_id, bucket_count)
 
-    options = options or {}
+    options = table.deepcopy(options or {})
+    options.tube_name = self.tube_name
+    options.task_id = task_id
+
     options.extra = {
         log_request = utils.normalize.log_request(options.log_request) or self.log_request,
     }
 
     local task, err = vshard.router.call(bucket_id, 'write', 'tube_peek', {
-        {
-            tube_name = self.tube_name,
-            task_id = task_id,
-            options = options,
-        }
+        options
     })
     -- re-raise storage errors
     if err ~= nil then error(err) end
@@ -456,7 +447,7 @@ function sharded_queue.create_tube(tube_name, options)
     local ok , err = validate_options(options)
     if not ok then error(err) end
 
-    options = options or {}
+    options = table.deepcopy(options or {})
     if options.priority == nil and options.pri ~= nil then
         options.priority = options.pri
     end
