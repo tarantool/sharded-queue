@@ -1,7 +1,6 @@
 #!/usr/bin/env tarantool
 
 local t = require('luatest')
-local log = require('log')  -- luacheck: ignore
 local g = t.group('storage')
 
 local storage = require('sharded_queue.storage')
