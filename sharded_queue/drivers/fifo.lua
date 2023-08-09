@@ -74,21 +74,39 @@ end
 
 -- put task in space
 function method.put(args)
-    local idx = get_index(args)
-    local task_id = utils.pack_task_id(args.bucket_id, args.bucket_count, idx)
-    local task = get_space(args):insert { task_id, args.bucket_id, state.READY, args.data, idx }
+    local task = box.atomic(function()
+        local idx = get_index(args)
+        local task_id = utils.pack_task_id(
+            args.bucket_id,
+            args.bucket_count,
+            idx)
+
+        return get_space(args):insert {
+            task_id,
+            args.bucket_id,
+            state.READY,
+            args.data,
+            idx
+        }
+    end)
+
     update_stat(args.tube_name, 'put')
     return normalize_task(task)
 end
 
 -- take task
 function method.take(args)
-    local task = get_space(args).index.status:min { state.READY }
-    if task ~= nil and task[3] == state.READY then
-        task = get_space(args):update(task.task_id, { { '=', 3, state.TAKEN } })
-        update_stat(args.tube_name, 'take')
-        return normalize_task(task)
-    end
+    local task = box.atomic(function()
+        local task = get_space(args).index.status:min { state.READY }
+        if task == nil or task[3] ~= state.READY then
+            return
+        end
+        return get_space(args):update(task.task_id, { { '=', 3, state.TAKEN } })
+    end)
+    if task == nil then return end
+
+    update_stat(args.tube_name, 'take')
+    return normalize_task(task)
 end
 
 function method.ack(args)

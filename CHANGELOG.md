@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Data race with fifo driver for put()/take() methods with vinyl
+  engine (#64).
+
 ## 0.1.1 - 2023-09-06
 
 The release fixes the loss of tasks in the `fifottl` driver.
