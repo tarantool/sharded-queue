@@ -74,7 +74,7 @@ end
 
 -- put task in space
 function method.put(args)
-    local task = box.atomic(function()
+    local task = utils.atomic(function()
         local idx = get_index(args)
         local task_id = utils.pack_task_id(
             args.bucket_id,
@@ -96,7 +96,7 @@ end
 
 -- take task
 function method.take(args)
-    local task = box.atomic(function()
+    local task = utils.atomic(function()
         local task = get_space(args).index.status:min { state.READY }
         if task == nil or task[3] ~= state.READY then
             return
