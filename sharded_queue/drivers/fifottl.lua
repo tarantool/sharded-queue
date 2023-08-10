@@ -233,7 +233,7 @@ function method.put(args)
     local ttr = args.ttr or args.options.ttr or ttl
     local priority = args.priority or args.options.priority or 0
 
-    local task = box.atomic(function()
+    local task = utils.atomic(function()
         local idx = get_index(args.tube_name, args.bucket_id)
 
         local next_event
@@ -301,7 +301,7 @@ end
 
 function method.take(args)
 
-    local task = box.atomic(take, args)
+    local task = utils.atomic(take, args)
     if task == nil then return end
 
     if args.extra and args.extra.log_request then
@@ -314,10 +314,14 @@ function method.take(args)
 end
 
 function method.delete(args)
-    box.begin()
-    local task = box.space[args.tube_name]:get(args.task_id)
-    box.space[args.tube_name]:delete(args.task_id)
-    box.commit()
+    local task = utils.atomic(function()
+        local task = box.space[args.tube_name]:get(args.task_id)
+        if task ~= nil then
+            box.space[args.tube_name]:delete(args.task_id)
+        end
+        return task
+    end)
+
     if task ~= nil then
         task = task:tomap()
         task.status = state.DONE
@@ -355,10 +359,13 @@ function method.touch(args)
 end
 
 function method.ack(args)
-    box.begin()
-    local task = box.space[args.tube_name]:get(args.task_id)
-    box.space[args.tube_name]:delete(args.task_id)
-    box.commit()
+    local task = utils.atomic(function()
+        local task = box.space[args.tube_name]:get(args.task_id)
+        if task ~= nil then
+            box.space[args.tube_name]:delete(args.task_id)
+        end
+        return task
+    end)
     if task ~= nil then
         task = task:tomap()
         task.status = state.DONE
@@ -385,15 +392,16 @@ function method.peek(args)
 end
 
 function method.release(args)
-    box.begin()
-    local task = box.space[args.tube_name]:get(args.task_id)
-    if task ~= nil then
-        task = box.space[args.tube_name]:update(args.task_id, {
-            {'=', index.status, state.READY},
-            {'=', index.next_event, task[index.created] + task[index.ttl]},
-        })
-    end
-    box.commit()
+    local task = utils.atomic(function()
+        local task = box.space[args.tube_name]:get(args.task_id)
+        if task ~= nil then
+            task = box.space[args.tube_name]:update(args.task_id, {
+                {'=', index.status, state.READY},
+                {'=', index.next_event, task[index.created] + task[index.ttl]},
+            })
+        end
+        return task
+    end)
 
     if args.extra and args.extra.log_request then
         log_operation("release", task)
@@ -408,15 +416,16 @@ function method.bury(args)
     update_stat(args.tube_name, 'bury')
     wc_signal(args.tube_name)
 
-    box.begin()
-    local task = box.space[args.tube_name]:get(args.task_id)
-    if task ~= nil then
-        task = box.space[args.tube_name]:update(args.task_id, {
-            {'=', index.status, state.BURIED},
-            {'=', index.next_event, task[index.created] + task[index.ttl]},
-        })
-    end
-    box.commit()
+    local task = utils.atomic(function()
+        local task = box.space[args.tube_name]:get(args.task_id)
+        if task ~= nil then
+            task = box.space[args.tube_name]:update(args.task_id, {
+                {'=', index.status, state.BURIED},
+                {'=', index.next_event, task[index.created] + task[index.ttl]},
+            })
+        end
+        return task
+    end)
 
     if args.extra and args.extra.log_request then
         log_operation("bury", task)

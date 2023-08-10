@@ -2,6 +2,32 @@ local fiber = require('fiber')
 
 local utils = {}
 
+local function atomic_tail(status, ...)
+    if not status then
+        box.rollback()
+        error((...), 2)
+     end
+     box.commit()
+     return ...
+end
+
+-- box.atomic(opts, fun, args) does not supported for all Tarantool's versions,
+-- so we an analog.
+function utils.atomic(fun, ...)
+    if box.cfg.memtx_use_mvcc_engine then
+        -- max() + insert() or min() + update() do not work as expected with
+        -- best-effort visibility: for write transactions it chooses
+        -- read-committed, for read transactions it chooses read-confirmed.
+        --
+        -- So max()/min() could return the same tuple even if a concurrent
+        -- insert()/update() has been committed, but has not confirmed yet.
+        box.begin({txn_isolation = 'read-committed'})
+    else
+        box.begin()
+    end
+    return atomic_tail(pcall(fun, ...))
+end
+
 function utils.array_shuffle(array)
     if not array then return nil end
     math.randomseed(tonumber(0ULL + fiber.time64()))
