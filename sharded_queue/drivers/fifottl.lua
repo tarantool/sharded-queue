@@ -1,4 +1,5 @@
 local fiber = require('fiber')
+local json = require('json')
 local state = require('sharded_queue.state')
 local utils = require('sharded_queue.utils')
 local statistics = require('sharded_queue.statistics')
@@ -27,11 +28,17 @@ local function is_expired(task)
 end
 
 local function log_operation(op_name, task)
-    local bucket_id, task_id
-    if type(task) == 'table' then
-        bucket_id, task_id = task[index.bucket_id], task[index.task_id]
+    local bucket_id, task_id, data
+    if type(task) == 'table' or type(task) == 'cdata' then
+        bucket_id, task_id, data = task[index.bucket_id], task[index.task_id], task[index.data]
+        local ok, ret = pcall(json.encode, data)
+        if not ok then
+            data = string.format("failed to encode: %s", tostring(ret))
+        else
+            data = ret
+        end
     end
-    log.info(string.format([[Storage[%d]: [%s] %s task %s]], fiber.self():id(), bucket_id, op_name, task_id))
+    log.info(string.format([[Storage[%d]: [%s] %s task %s data %s]], fiber.self():id(), bucket_id, op_name, task_id, data))
 end
 
 local wait_cond_map = {}
