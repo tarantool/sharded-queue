@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- A deletion of a released task after `ttr` in the `fifottl` driver.
+
 ## 0.1.0 - 2023-06-16
 
 The first release provides cartridge roles that implement a distributed
