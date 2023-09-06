@@ -13,7 +13,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- A deletion of a released task after `ttr` in the `fifottl` driver.
+## 0.1.1 - 2023-09-06
+
+The release fixes the loss of tasks in the `fifottl` driver.
+
+### Fixed
+
+- A deletion of a released task after `ttr` in the `fifottl` driver (#65).
 
 ## 0.1.0 - 2023-06-16
 
