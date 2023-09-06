@@ -375,7 +375,6 @@ function method.ack(args)
 end
 
 function method.peek(args)
-
     local task = box.space[args.tube_name]:get(args.task_id)
 
     if args.extra and args.extra.log_request then
@@ -386,7 +385,15 @@ function method.peek(args)
 end
 
 function method.release(args)
-    local task = box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.READY} })
+    box.begin()
+    local task = box.space[args.tube_name]:get(args.task_id)
+    if task ~= nil then
+        task = box.space[args.tube_name]:update(args.task_id, {
+            {'=', index.status, state.READY},
+            {'=', index.next_event, task[index.created] + task[index.ttl]},
+        })
+    end
+    box.commit()
 
     if args.extra and args.extra.log_request then
         log_operation("release", task)
@@ -401,7 +408,16 @@ function method.bury(args)
     update_stat(args.tube_name, 'bury')
     wc_signal(args.tube_name)
 
-    local task = box.space[args.tube_name]:update(args.task_id, { {'=', index.status, state.BURIED} })
+    box.begin()
+    local task = box.space[args.tube_name]:get(args.task_id)
+    if task ~= nil then
+        task = box.space[args.tube_name]:update(args.task_id, {
+            {'=', index.status, state.BURIED},
+            {'=', index.next_event, task[index.created] + task[index.ttl]},
+        })
+    end
+    box.commit()
+
     if args.extra and args.extra.log_request then
         log_operation("bury", task)
     end

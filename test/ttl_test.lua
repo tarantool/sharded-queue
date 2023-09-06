@@ -150,3 +150,64 @@ function g.test_delayed_tasks()
     t.assert_equals(peek_task[utils.index.status], utils.state.TAKEN)
 
 end
+
+function g.test_ttr_release_no_delete_task()
+    local tube_name = 'ttr_release_no_delete_task_test'
+    g.queue_conn:call('queue.create_tube', {
+        tube_name,
+        {
+            wait_factor = 1,
+            ttr = 0.2,
+            log_request = true,
+        }
+    })
+
+    g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), {
+        'simple data',
+    })
+    local taken_task = g.queue_conn:call(utils.shape_cmd(tube_name, 'take'))
+    local released_task = g.queue_conn:call(utils.shape_cmd(tube_name, 'release'), {
+        taken_task[utils.index.task_id]
+    })
+    t.assert_equals(released_task[utils.index.data], 'simple data')
+    t.assert_equals(released_task[utils.index.status], utils.state.READY)
+
+    -- Wait for a clenup fiber.
+    fiber.sleep(1)
+
+    local retaken_task = g.queue_conn:call(utils.shape_cmd(tube_name, 'take'), {0.5})
+    t.assert_not_equals(retaken_task, box.NULL)
+    t.assert_equals(retaken_task[utils.index.data], 'simple data')
+    t.assert_equals(retaken_task[utils.index.status], utils.state.TAKEN)
+end
+
+function g.test_ttr_bury_no_delete_task()
+    local tube_name = 'ttr_bury_no_delete_task_test'
+    g.queue_conn:call('queue.create_tube', {
+        tube_name,
+        {
+            wait_factor = 1,
+            ttr = 0.2,
+            log_request = true,
+        }
+    })
+
+    g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), {
+        'simple data',
+    })
+    local taken_task = g.queue_conn:call(utils.shape_cmd(tube_name, 'take'))
+    local buried_task = g.queue_conn:call(utils.shape_cmd(tube_name, 'bury'), {
+        taken_task[utils.index.task_id]
+    })
+    t.assert_equals(buried_task[utils.index.data], 'simple data')
+    t.assert_equals(buried_task[utils.index.status], utils.state.BURIED)
+
+    -- Wait for a clenup fiber.
+    fiber.sleep(1)
+
+    g.queue_conn:call(utils.shape_cmd(tube_name, 'kick'), {1})
+    local retaken_task = g.queue_conn:call(utils.shape_cmd(tube_name, 'take'), {0.5})
+    t.assert_not_equals(retaken_task, box.NULL)
+    t.assert_equals(retaken_task[utils.index.data], 'simple data')
+    t.assert_equals(retaken_task[utils.index.status], utils.state.TAKEN)
+end
