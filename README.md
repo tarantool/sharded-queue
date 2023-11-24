@@ -3,6 +3,53 @@
 
 This module provides cartridge roles implementing of a distributed queue compatible with [Tarantool queue](https://github.com/tarantool/queue) (*fifiottl driver*)
 
+```mermaid
+flowchart TB
+    customers((customers)):::blue
+    customers <--> router1
+    customers <--> router2
+
+    subgraph Queue
+    router1
+    router2
+
+        subgraph shard1
+        storage11[("Storage\n master")]
+        storage12[("Storage\n replica")]
+        storage13[("Storage\n replica")]
+        storage11<-->storage12
+        storage11<-->storage13
+        storage12<-->storage13
+        end
+
+        subgraph shard2
+        storage21[("Storage\n master")]
+        storage22[("Storage\n replica")]
+        storage23[("Storage\n replica")]
+        storage21<-->storage22
+        storage21<-->storage23
+        storage22<-->storage23
+        end
+
+        subgraph shard3
+        storage31[("Storage\n master")]
+        storage32[("Storage\n replica")]
+        storage33[("Storage\n replica")]
+        storage31<-->storage32
+        storage31<-->storage33
+        storage32<-->storage33
+        end
+
+        router1 <--> shard1
+        router1 <--> shard2
+        router1 <--> shard3
+        router2 <--> shard1
+        router2 <--> shard2
+        router2 <--> shard3
+
+    end
+```
+
 ## Usage in a cartridge application
 
 1. Add dependency to your application rockspec
