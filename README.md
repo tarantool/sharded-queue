@@ -70,10 +70,20 @@ cartridge.cfg({
 
 ## Usage as a ready-to-deploy service
 
-Just run ```cartridge pack rpm --version 1.0.0 .``` and install resulting package on your target servers.
+Prepare `tt` environment:
+```
+tt init
+git clone https://github.com/tarantool/sharded-queue instances.enabled/sharded-queue
+```
 
-For more details refer to [cartridge-cli](https://github.com/tarantool/cartridge-cli/)
+Run:
+```
+tt pack --app-list sharded-queue rpm --version 1.0.0
+```
 
+Now you could install resulting package on your target servers.
+
+For more details refer to [tt](https://github.com/tarantool/tt/)
 
 ## Usage from client perspective
 
@@ -125,22 +135,26 @@ supported:
 
 ## Running locally (as an example)
 
-Install dependencies:
-
+Prepare `tt` environment:
 ```
-cartridge build
+tt init
+git clone https://github.com/tarantool/sharded-queue instances.enabled/sharded-queue
+```
+
+Install dependencies:
+```
+tt build sharded-queue
 ```
 
 Start default configuration:
 ```
-cartridge start -d
-cartridge replicasets setup --bootstrap-vshard
+tt start sharded-queue
+tt cartridge replicasets setup --bootstrap-vshard --name sharded-queue
 ```
-To stop and clear data, say:
 
+To stop, say:
 ```
-cartridge stop
-rm -rf ./tmp
+tt stop sharded-queue
 ```
 
 ## Launching tests
