@@ -26,6 +26,7 @@ build = {
             ['sharded_queue.drivers.fifottl'] = 'sharded_queue/drivers/fifottl.lua',
             ['sharded_queue.time'] = 'sharded_queue/time.lua',
             ['sharded_queue.utils'] = 'sharded_queue/utils.lua',
+            ['sharded_queue.stash'] = 'sharded_queue/stash.lua',
             ['sharded_queue.state'] = 'sharded_queue/state.lua',
             ['sharded_queue.statistics'] = 'sharded_queue/statistics.lua',
             ['sharded_queue.version'] = 'sharded_queue/version.lua',
