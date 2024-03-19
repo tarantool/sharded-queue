@@ -1,10 +1,10 @@
 local state = require('sharded_queue.state')
 local utils = require('sharded_queue.utils')
 local log = require('log') -- luacheck: ignore
-local statistics = require('sharded_queue.statistics')
+local stats = require('sharded_queue.stats.storage')
 
 local function update_stat(tube_name, name)
-    statistics.update(tube_name, name, '+', 1)
+    stats.update(tube_name, name, '+', 1)
 end
 
 local method = {}
