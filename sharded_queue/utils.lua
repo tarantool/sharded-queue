@@ -1,5 +1,7 @@
 local fiber = require('fiber')
 
+local metrics = require('sharded_queue.metrics')
+
 local utils = {}
 
 local function atomic_tail(status, ...)
@@ -70,6 +72,28 @@ function utils.normalize.wait_max(wait_max)
         end
     end
     return wait_max
+end
+
+function utils.validate_config_cfg(cfg)
+    cfg = cfg.tubes or {}
+    if cfg['cfg'] == nil then
+        return true
+    end
+
+    cfg = cfg['cfg']
+    if type(cfg) ~= 'table' then
+        return nil, '"cfg" must be a table'
+    end
+    if cfg.metrics and type(cfg.metrics) ~= 'boolean' then
+        return nil, '"cfg.metrics" must be a boolean'
+    end
+    if cfg.metrics and cfg.metrics == true then
+        if not metrics.is_supported() then
+            return nil, "metrics >= 0.11.0 is required"
+        end
+    end
+
+    return true
 end
 
 return utils

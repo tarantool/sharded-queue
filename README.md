@@ -166,6 +166,73 @@ make deps
 make test
 ```
 
+## Metrics
+
+The module exports several metrics if the module `metrics` >= 0.11 is
+installed and the feature is not disabled by the configuration.
+
+### Role sharded_queue.api
+
+* Metric `tnt_sharded_queue_api_statistics_calls_total` is a counter with
+  the number of requests broken down by [the type of request][queue-statistics].
+  The metric has labels in the following format:
+
+  `{name = "tube_name", state = "request_type"}`
+
+  A list of possible request types: `done`, `take`, `kick`, `bury`, `put`,
+  `delete`, `touch`, `ack`, `release`. The metric on the `sharded_queue.api`
+  role accumulates values from all buckets.
+
+* Metric `tnt_sharded_queue_api_statistics_tasks` is a gauge with
+  the number of tasks in a queue broken down by [a task state][queue-statistics].
+  The metric has labels in the following format:
+
+  `{name = "tube_name", state = "task_state"}`
+
+  A list of possible task states: `taken`, `buried`, `ready`, `done`,
+  `delayed`, `total`. The metric on the `sharded_queue.api` role accumulates
+  values from all buckets.
+
+* Metric `tnt_sharded_queue_api_role_stats` is a [summary][metrics-summary]
+  with quantiles of `sharded_queue.api` role API calls. The metric includes a
+  counter of API calls and errors and has labels in the following format:
+
+  `{name = "tube_name", method = "api_call_method", status = "ok" or "error"}`
+
+  A list of possible call methods: `put`, `take`, `delete`, `release`, `touch`,
+  `ack`, `bury`, `kick`, `peek`, `drop`.
+
+### Role sharded_queue.storage
+
+* Metric `tnt_sharded_queue_storage_statistics_calls_total` is a counter with
+  the number of requests broken down by [the type of request][queue-statistics].
+  The metric has labels in the following format:
+
+  `{name = "tube_name", state = "request_type"}`
+
+  A list of possible request types: `done`, `take`, `kick`, `bury`, `put`,
+  `delete`, `touch`, `ack`, `release`. The metric on the `sharded_queue.storage`
+  role shows actual values on the instance.
+
+* Metric `tnt_sharded_queue_storage_statistics_tasks` is a gauge with
+  the number of tasks in a queue broken down by [a task state][queue-statistics].
+  The metric has labels in the following format:
+
+  `{name = "tube_name", state = "task_state"}`
+
+  A list of possible task states: `taken`, `buried`, `ready`, `done`,
+  `delayed`, `total`. The metric on the `sharded_queue.storage` role shows
+  actual values on the instance.
+
+* Metric `tnt_sharded_queue_storage_role_stats` is a [summary][metrics-summary]
+  with quantiles of `sharded_queue.api` role API calls. The metric includes a
+  counter of API calls and errors and has labels in the following format:
+
+  `{name = "tube_name", method = "api_call_method", status = "ok" or "error"}`
+
+  A list of possible call methods: `statistic`, `put`, `take`, `delete`,
+  `release`, `touch`, `ack`, `bury`, `kick`, `peek`, `drop`.
+
 ## API extensions (compared to tarantool/queue)
 
 * ``tube:take`` method has additional table argument ``options``. It may be used to provide additional logic in some
@@ -198,3 +265,6 @@ make test
     ```
 
     If you use **fifottl** driver (default), you can log driver's method calls with `log_request` (log router's and storage's operations).
+
+[metrics-summary]: https://www.tarantool.io/en/doc/latest/book/monitoring/api_reference/#summary
+[queue-statistics]: https://github.com/tarantool/queue?tab=readme-ov-file#getting-statistics

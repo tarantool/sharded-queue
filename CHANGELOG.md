@@ -9,7 +9,41 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Metric `tnt_sharded_queue_api_role_stats` is a [summary][metrics-summary]
+  with quantiles of `sharded_queue.api` role API calls (#71).
+  The metric includes a counter of API calls and errors.
+  The metric contains labels in the following format:
+  `{name = "tube_name", method = "api_call_method", status = "ok" or "error"}`
+- Metric `tnt_sharded_queue_storage_role_stats` is a [summary][metrics-summary]
+  with quantiles of `sharded_queue.storage` role API calls (#71).
+  The metric includes a counter of API calls and errors.
+  The metric contains labels in the following format:
+  `{name = "tube_name", method = "api_call_method", status = "ok" or "error"}`
+- Metric `tnt_sharded_queue_storage_statistics_calls_total` as an equivalent of
+  `tnt_sharded_queue_api_statistics_calls_total` for the
+  `sharded_queue.storage` role (#71).
+  Values have the same meaning as the [`queue` statistics][queue-statistics]
+  `calls` table.
+  The metric contains labels in the following format:
+  `{name = "tube_name", state = "call_type"}`
+- Metric `tnt_sharded_queue_storage_statistics_tasks` as an equivalent of
+  `tnt_sharded_queue_api_statistics_tasks` for the `sharded_queue.storage`
+  role (#71).
+  Values have the same meaning as the [`queue` statistics][queue-statistics]
+  `tasks` table.
+  The metric contains labels in the following format:
+  `{name = "tube_name", state = "task_state"}`
+
 ### Changed
+
+- Metric `sharded_queue_calls` renamed to
+  `tnt_sharded_queue_api_statistics_calls_total` (#71). The metric now has
+  labels in the format `{name = "tube_name", state = "call_type"}` instead of
+  `{name = "tube_name", status = "call_type"}`.
+- Metric `sharded_queue_tasks` renamed to
+  `tnt_sharded_queue_api_statistics_tasks` (#71). The metric now has labels
+  in the format `{name = "tube_name", state = "task_state"}` instead of
+  `{name = "tube_name", status = "task_state"}`.
 
 ### Fixed
 
@@ -47,3 +81,6 @@ different shards (over the whole cluster).
 - Testing CI (#53).
 - Linter check on CI (#18).
 - Publish CI (#54).
+
+[metrics-summary]: https://www.tarantool.io/en/doc/latest/book/monitoring/api_reference/#summary
+[queue-statistics]: https://github.com/tarantool/queue?tab=readme-ov-file#getting-statistics
