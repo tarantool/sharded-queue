@@ -1,3 +1,5 @@
+---- Module used to store storage-specific statistics.
+
 local state = require('sharded_queue.state')
 
 local statistics = {}
@@ -15,7 +17,8 @@ local actions = {
 }
 
 function statistics.init()
-    local space_stat = box.schema.space.create('_queue_statistics', { if_not_exists = true })
+    local space_stat = box.schema.space.create('_queue_statistics',
+        { if_not_exists = true })
     space_stat:format({
         { 'tube_name', 'string' },
         { 'done', 'unsigned' },
@@ -40,7 +43,9 @@ end
 
 function statistics.update(tube_name, stat_name, operation, value)
     if actions[stat_name] == nil then return end
-    box.space._queue_statistics:update(tube_name, { { operation, actions[stat_name], value } })
+
+    box.space._queue_statistics:update(tube_name,
+        { { operation, actions[stat_name], value } })
 end
 
 function statistics.reset(tube_name)

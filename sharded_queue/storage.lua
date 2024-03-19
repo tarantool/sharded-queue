@@ -4,7 +4,7 @@ local json = require('json')
 local cartridge = require('cartridge')
 
 local state = require('sharded_queue.state')
-local statistics = require('sharded_queue.statistics')
+local stats_storage = require('sharded_queue.stats.storage')
 
 local DEFAULT_DRIVER = 'sharded_queue.drivers.fifottl'
 
@@ -61,7 +61,7 @@ local methods = {
 
 local function apply_config(cfg, opts)
     if opts.is_master then
-        statistics.init()
+        stats_storage.init()
 
         local cfg_tubes = cfg.tubes or {}
 
@@ -76,7 +76,7 @@ local function apply_config(cfg, opts)
                     name = tube_name,
                     options = cfg_tubes[tube_name]
                 })
-                statistics.reset(tube_name)
+                stats_storage.reset(tube_name)
             end
         end
 
@@ -104,7 +104,7 @@ local function apply_config(cfg, opts)
         end
 
         local tube_statistic_func = function(args)
-            return statistics.get(args.tube_name)
+            return stats_storage.get(args.tube_name)
         end
 
         rawset(_G, 'tube_statistic', tube_statistic_func)
