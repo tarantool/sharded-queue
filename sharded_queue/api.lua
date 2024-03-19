@@ -3,6 +3,7 @@ local vshard = require('vshard')
 local fiber = require('fiber')
 local log = require('log')
 
+local metrics = require('sharded_queue.metrics')
 local stash = require('sharded_queue.stash')
 local state = require('sharded_queue.state')
 local time = require('sharded_queue.time')
@@ -10,11 +11,10 @@ local utils = require('sharded_queue.utils')
 
 local cartridge_pool = require('cartridge.pool')
 local cartridge_rpc = require('cartridge.rpc')
-local is_metrics_package, metrics = pcall(require, "metrics")
 
 local stash_names = {
-    cfg = '__sharded_queue_cfg',
-    metrics_stats = '__sharded_queue_metrics_stats',
+    cfg = '__sharded_queue_api_cfg',
+    metrics_stats = '__sharded_queue_api_metrics_stats',
 }
 stash.setup(stash_names)
 
@@ -403,91 +403,49 @@ end
 local sharded_queue = {
     tube = {},
     cfg = stash.get(stash_names.cfg),
-    metrics_stats = stash.get(stash_names.metrics_stats),
+    metrics_stats = metrics.init(stash.get(stash_names.metrics_stats)),
 }
+
 if sharded_queue.cfg.metrics == nil then
     sharded_queue.cfg.metrics = true
 end
 
-local function is_metrics_v_0_11_installed()
-    if not is_metrics_package or metrics.unregister_callback == nil then
-        return false
-    end
-    local counter = require('metrics.collectors.counter')
-    return counter.remove and true or false
+if sharded_queue.cfg.metrics then
+    sharded_queue.cfg.metrics = metrics.is_supported()
 end
 
-local function metrics_create_collectors()
-    return {
-        calls = {
-            collector = metrics.counter(
-                "sharded_queue_calls",
-                "sharded_queue's number of calls"
-            ),
-            values = {},
-        },
-        tasks = {
-            collector = metrics.gauge(
-                "sharded_queue_tasks",
-                "sharded_queue's number of tasks"
-            )
-        },
-    }
-end
+local function wrap_sharded_queue_call_counters(call, fun)
+    return function(self, ...)
+        local before = fiber.clock()
+        local ok, ret = pcall(fun, self, ...)
+        local after = fiber.clock()
 
-local function metrics_disable()
-    if sharded_queue.metrics_stats.callback then
-        metrics.unregister_callback(sharded_queue.metrics_stats.callback)
-    end
-    sharded_queue.metrics_stats.callback = nil
-
-    if sharded_queue.metrics_stats.collectors then
-        for _, c in pairs(sharded_queue.metrics_stats.collectors) do
-            metrics.registry:unregister(c.collector)
+        if sharded_queue.cfg.metrics then
+            sharded_queue.metrics_stats:observe(after - before,
+                self.tube_name, call, ok)
         end
+
+        if not ok then
+            error(ret)
+        end
+
+        return ret
     end
-    sharded_queue.metrics_stats.collectors = nil
+end
+
+for call, fun in pairs(sharded_tube) do
+    sharded_tube[call] = wrap_sharded_queue_call_counters(call, fun)
 end
 
 local function metrics_enable()
-    -- Drop all collectors and a callback.
-    metrics_disable()
-
-    -- Set all collectors and the callback.
-    sharded_queue.metrics_stats.collectors = metrics_create_collectors()
-    local callback = function()
-        local metrics_stats = sharded_queue.metrics_stats
-        for tube_name, _ in pairs(sharded_queue.tube) do
-            local stat = sharded_queue.statistics(tube_name)
-            local collectors = metrics_stats.collectors
-            if collectors.calls.values[tube_name] == nil then
-                collectors.calls.values[tube_name] = {}
-            end
-            for k, v in pairs(stat.calls) do
-                local prev = metrics_stats.collectors.calls.values[tube_name][k] or 0
-                local inc = v - prev
-                metrics_stats.collectors.calls.collector:inc(inc, {
-                    name = tube_name,
-                    status = k,
-                })
-                metrics_stats.collectors.calls.values[tube_name][k] = v
-            end
-            for k, v in pairs(stat.tasks) do
-                metrics_stats.collectors.tasks.collector:set(v, {
-                    name = tube_name,
-                    status = k,
-                })
-            end
-        end
+    local get_statistic = function(tube)
+        return sharded_queue.statistics(tube)
     end
-
-    metrics.register_callback(callback)
-    sharded_queue.metrics_stats.callback = callback
-    return true
+    sharded_queue.metrics_stats:enable('api', sharded_queue.tube, get_statistic)
 end
 
-if sharded_queue.cfg.metrics then
-    sharded_queue.cfg.metrics = is_metrics_v_0_11_installed()
+local function metrics_disable()
+    sharded_queue.metrics_stats:disable()
 end
 
 function sharded_queue.cfg_call(_, options)
@@ -526,7 +484,6 @@ function sharded_queue.statistics(tube_name)
 
     local stats_collection, err = cartridge_pool.map_call('tube_statistic',
         {{ tube_name = tube_name }}, {uri_list=storages})
-
     if err ~= nil then
         return nil, err
     end
@@ -585,22 +542,7 @@ local function init(opts)
 end
 
 local function validate_config(cfg)
-    if cfg['cfg'] == nil then
-        return
-    end
-
-    cfg = cfg['cfg']
-    if type(cfg) ~= 'table' then
-        error('"cfg" must be a table')
-    end
-    if cfg.metrics and type(cfg.metrics) ~= 'boolean' then
-        error('"cfg.metrics" must be a boolean')
-    end
-    if cfg.metrics and cfg.metrics == true then
-        if not is_metrics_v_0_11_installed() then
-            error("metrics >= 0.11.0 is required")
-        end
-    end
+    return utils.validate_config_cfg(cfg)
 end
 
 local function apply_config(cfg, opts)
@@ -618,7 +560,7 @@ local function apply_config(cfg, opts)
                 wait_factor = options.wait_factor or time.DEFAULT_WAIT_FACTOR,
                 log_request = utils.normalize.log_request(options.log_request),
             }, {
-                __index = sharded_tube
+                __index = sharded_tube,
             })
             sharded_queue.tube[tube_name] = self
         end
@@ -645,7 +587,6 @@ local function queue_action_wrapper(action)
         if not sharded_queue.tube[name] then
             return nil, string.format('No queue "%s" initialized yet', name)
         end
-
         return sharded_queue.tube[name][action](sharded_queue.tube[name], ...)
     end
 end
@@ -653,6 +594,8 @@ end
 return {
     init = init,
     apply_config = apply_config,
+    validate_config = validate_config,
+
     put = queue_action_wrapper('put'),
     take = queue_action_wrapper('take'),
     delete = queue_action_wrapper('delete'),

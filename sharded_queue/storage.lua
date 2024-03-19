@@ -1,12 +1,48 @@
-local log = require('log')
+local fiber = require('fiber')
 local json = require('json')
+local log = require('log')
 
 local cartridge = require('cartridge')
 
+local metrics = require('sharded_queue.metrics')
+local stash = require('sharded_queue.stash')
 local state = require('sharded_queue.state')
 local stats_storage = require('sharded_queue.stats.storage')
+local utils = require('sharded_queue.utils')
 
 local DEFAULT_DRIVER = 'sharded_queue.drivers.fifottl'
+
+local stash_names = {
+    cfg = '__sharded_queue_storage_cfg',
+    metrics_stats = '__sharded_queue_storage_metrics_stats',
+}
+stash.setup(stash_names)
+
+local methods = {
+    'statistic',
+    'put',
+    'take',
+    'delete',
+    'touch',
+    'ack',
+    'peek',
+    'release',
+    'bury',
+    'kick',
+}
+
+local storage = {
+    cfg = stash.get(stash_names.cfg),
+    metrics_stats = metrics.init(stash.get(stash_names.metrics_stats)),
+}
+
+if storage.cfg.metrics == nil then
+    storage.cfg.metrics = true
+end
+
+if storage.cfg.metrics then
+    storage.cfg.metrics = metrics.is_supported()
+end
 
 local queue_drivers = {}
 local function get_driver(driver_name)
@@ -30,8 +66,20 @@ local function map_tubes(cfg_tubes)
     return result
 end
 
-local function validate_config(conf_new, _)
-    local cfg_tubes = conf_new.tubes or {}
+local function metrics_enable()
+    local get_statistic = function(tube)
+        return stats_storage.get(tube)
+    end
+
+    storage.metrics_stats:enable('storage', tubes, get_statistic)
+end
+
+local function metrics_disable()
+    storage.metrics_stats:disable()
+end
+
+local function validate_config(cfg)
+    local cfg_tubes = cfg.tubes or {}
     for tube_name, tube_opts in pairs(cfg_tubes) do
         if tube_opts.driver ~= nil then
             if type('tube_opts.driver') ~= 'string' then
@@ -43,27 +91,21 @@ local function validate_config(conf_new, _)
             end
         end
     end
-    return true
-end
 
-local methods = {
-    'statistic',
-    'put',
-    'take',
-    'delete',
-    'touch',
-    'ack',
-    'peek',
-    'release',
-    'bury',
-    'kick',
-}
+    return utils.validate_config_cfg(cfg)
+end
 
 local function apply_config(cfg, opts)
     if opts.is_master then
         stats_storage.init()
 
         local cfg_tubes = cfg.tubes or {}
+        if cfg_tubes['cfg'] ~= nil then
+            local options = cfg_tubes['cfg']
+            if options.metrics ~= nil then
+                storage.cfg.metrics = options.metrics and true or false
+            end
+        end
 
         local existing_tubes = tubes
 
@@ -95,7 +137,21 @@ local function apply_config(cfg, opts)
 
                 local tube_name = args.tube_name
                 if tubes[tube_name].method[name] == nil then error(('Method %s not implemented in tube %s'):format(name, tube_name)) end
-                return tubes[tube_name].method[name](args)
+
+                local before = fiber.clock()
+                local ok, ret, err = pcall(tubes[tube_name].method[name], args)
+                local after = fiber.clock()
+
+                if storage.cfg.metrics then
+                    storage.metrics_stats:observe(after - before,
+                        tube_name, name, ok and err == nil)
+                end
+
+                if not ok then
+                    error(ret)
+                end
+
+                return ret, err
             end
 
             local global_name = 'tube_' .. name
@@ -104,11 +160,29 @@ local function apply_config(cfg, opts)
         end
 
         local tube_statistic_func = function(args)
-            return stats_storage.get(args.tube_name)
+            local before = fiber.clock()
+            local ok, ret, err = pcall(stats_storage.get, args.tube_name)
+            local after = fiber.clock()
+            if storage.cfg.metrics then
+                storage.metrics_stats:observe(after - before,
+                    args.tube_name, 'statistic', ok and err == nil)
+            end
+
+            if not ok then
+                error(ret)
+            end
+
+            return ret, err
         end
 
         rawset(_G, 'tube_statistic', tube_statistic_func)
         box.schema.func.create('tube_statistic', { if_not_exists = true })
+    end
+
+    if storage.cfg.metrics then
+        metrics_enable()
+    else
+        metrics_disable()
     end
 
     return true
