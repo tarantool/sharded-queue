@@ -3,6 +3,7 @@ local vshard = require('vshard')
 local fiber = require('fiber')
 local log = require('log')
 
+local stash = require('sharded_queue.stash')
 local state = require('sharded_queue.state')
 local time = require('sharded_queue.time')
 local utils = require('sharded_queue.utils')
@@ -10,25 +11,12 @@ local utils = require('sharded_queue.utils')
 local cartridge_pool = require('cartridge.pool')
 local cartridge_rpc = require('cartridge.rpc')
 local is_metrics_package, metrics = pcall(require, "metrics")
-local is_hotreload_package, hotreload = pcall(require, "cartridge.hotreload")
 
 local stash_names = {
     cfg = '__sharded_queue_cfg',
     metrics_stats = '__sharded_queue_metrics_stats',
 }
-
-if is_hotreload_package then
-    for _, name in pairs(stash_names) do
-        hotreload.whitelist_globals({ name })
-    end
-end
-
--- get a stash instance, initialize if needed
-local function stash_get(name)
-    local instance = rawget(_G, name) or {}
-    rawset(_G, name, instance)
-    return instance
-end
+stash.setup(stash_names)
 
 local remote_call = function(method, instance_uri, args, timeout)
     local conn = cartridge_pool.connect(instance_uri)
@@ -414,8 +402,8 @@ end
 
 local sharded_queue = {
     tube = {},
-    cfg = stash_get(stash_names.cfg),
-    metrics_stats = stash_get(stash_names.metrics_stats),
+    cfg = stash.get(stash_names.cfg),
+    metrics_stats = stash.get(stash_names.metrics_stats),
 }
 if sharded_queue.cfg.metrics == nil then
     sharded_queue.cfg.metrics = true
