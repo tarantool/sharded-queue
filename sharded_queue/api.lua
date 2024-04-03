@@ -9,18 +9,14 @@ local state = require('sharded_queue.state')
 local time = require('sharded_queue.time')
 local utils = require('sharded_queue.utils')
 
-local cartridge_pool = require('cartridge.pool')
-local cartridge_rpc = require('cartridge.rpc')
-
 local stash_names = {
     cfg = '__sharded_queue_api_cfg',
     metrics_stats = '__sharded_queue_api_metrics_stats',
 }
 stash.setup(stash_names)
 
-local remote_call = function(method, instance_uri, args, timeout)
-    local conn = cartridge_pool.connect(instance_uri)
-    return conn:call(method, { args }, { timeout = timeout })
+local remote_call = function(method, replicaset, args, timeout)
+    return replicaset:callrw(method, { args }, { timeout = timeout })
 end
 
 local function validate_options(options)
@@ -89,8 +85,8 @@ function sharded_tube.put(self, data, options)
 end
 
 -- function for try get task from instance --
-local function take_task(storages, options, take_timeout, call_timeout)
-    for _, instance_uri in ipairs(storages) do
+local function take_task(replicasets, options, take_timeout, call_timeout)
+    for _, replicaset in ipairs(replicasets) do
         if take_timeout == 0 then
             break
         end
@@ -98,7 +94,7 @@ local function take_task(storages, options, take_timeout, call_timeout)
 
         -- try take task from all instance
         local ok, ret = pcall(remote_call, 'tube_take',
-            instance_uri,
+            replicaset,
             options,
             call_timeout
         )
@@ -148,13 +144,19 @@ function sharded_tube.take(self, timeout, options)
     while take_timeout ~= 0 do
         local begin = time.cur()
 
-        local storages = cartridge_rpc.get_candidates(
-            'sharded_queue.storage',
-            { leader_only = true })
+        local shards, err = vshard.router.routeall()
+        if err ~= nil then
+            error(err)
+        end
 
-        utils.array_shuffle(storages)
+        local replicasets = {}
+        for _, replicaset in pairs(shards) do
+            table.insert(replicasets, replicaset)
+        end
+        utils.array_shuffle(replicasets)
 
-        local task = take_task(storages, options, take_timeout, remote_call_timeout)
+        local task = take_task(replicasets,
+            options, take_timeout, remote_call_timeout)
 
         if task ~= nil then
             if options.extra.log_request then
@@ -340,19 +342,18 @@ end
 function sharded_tube.kick(self, count, options)
     -- try kick few tasks --
 
-    local storages = cartridge_rpc.get_candidates(
-        'sharded_queue.storage',
-        {
-            leader_only = true
-        })
-
     local kicked_count = 0 -- count kicked task
-    for _, instance_uri in ipairs(storages) do
+    local shards, err = vshard.router.routeall()
+    if err ~= nil then
+        error(err)
+    end
+
+    for _, replicaset in pairs(shards) do
         local opts = table.deepcopy(options or {})
         opts.tube_name = self.tube_name
         opts.count = count - kicked_count
 
-        local ok, k = pcall(remote_call, 'tube_kick', instance_uri, opts)
+        local ok, k = pcall(remote_call, 'tube_kick', replicaset, opts)
         if not ok then
             log.error(k)
             return kicked_count
@@ -475,15 +476,9 @@ function sharded_queue.statistics(tube_name)
     if not tube_name then
         return
     end
-    -- collect stats from all storages
-    local storages = cartridge_rpc.get_candidates(
-        'sharded_queue.storage',
-        {
-            leader_only = true
-        })
 
-    local stats_collection, err = cartridge_pool.map_call('tube_statistic',
-        {{ tube_name = tube_name }}, {uri_list=storages})
+    local stats_collection, err = vshard.router.map_callrw('tube_statistic',
+        {{ tube_name = tube_name }})
     if err ~= nil then
         return nil, err
     end
@@ -496,13 +491,16 @@ function sharded_queue.statistics(tube_name)
         return nil
     end
 
-    -- merge
     local stat = { tasks = {}, calls = {} }
-    for _, uri_stat in pairs(stats_collection) do
-        for name, count in pairs(uri_stat.tasks) do
+    for _, replicaset_stats in pairs(stats_collection) do
+        if type(replicaset_stats) ~= 'table' or next(replicaset_stats) == nil then
+            return nil, 'Invalid stats'
+        end
+
+        for name, count in pairs(replicaset_stats[1].tasks) do
             stat.tasks[name] = (stat.tasks[name] or 0) + count
         end
-        for name, count in pairs(uri_stat.calls) do
+        for name, count in pairs(replicaset_stats[1].calls) do
             stat.calls[name] = (stat.calls[name] or 0) + count
         end
     end
