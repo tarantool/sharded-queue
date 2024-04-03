@@ -6,6 +6,7 @@ local g = t.group('api')
 local api = require('sharded_queue.api')
 local config = require('test.helper.config')
 local utils = require('test.helper.utils')
+local tube = require('sharded_queue.router.tube')
 local is_metrics_supported = utils.is_metrics_supported()
 
 g.before_all(function()
@@ -19,7 +20,7 @@ g.after_each(function()
 end)
 
 g.test_exported_api = function()
-    for method, _ in pairs(api.__private.sharded_tube) do
+    for _, method in pairs(tube.get_methods()) do
         t.assert_type(api[method], 'function',
             string.format('api role has method "%s" exported', method))
     end
