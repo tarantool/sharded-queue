@@ -65,8 +65,11 @@ cartridge.cfg({
     ...
 })
 ```
-3. Queue API will be available on all nodes where sharded_queue.api is enabled
-
+3. Enable the `sharded_queue.storage` role on all storage nodes. Be careful,
+   there should be no replicasets with `cartridge.roles.vshard-storage` role,
+   but without the `sharded_queue.storage` role.
+4. Queue API will be available on all nodes where the `sharded_queue.api` role
+   is enabled.
 
 ## Usage as a ready-to-deploy service
 
