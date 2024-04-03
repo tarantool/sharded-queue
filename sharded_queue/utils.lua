@@ -74,13 +74,31 @@ function utils.normalize.wait_max(wait_max)
     return wait_max
 end
 
-function utils.validate_config_cfg(cfg)
-    cfg = cfg.tubes or {}
-    if cfg['cfg'] == nil then
+function utils.validate_tubes(tubes, on_storage)
+    for tube_name, tube_opts in pairs(tubes) do
+        if tube_opts.driver ~= nil then
+            if type(tube_opts.driver) ~= 'string' then
+                local msg = 'Driver name must be a valid module name for tube %s'
+                return nil, msg:format(tube_name)
+            end
+            if on_storage then
+                local ok, _ = pcall(require, tube_opts.driver)
+                if not ok then
+                    local msg = 'Driver %s could not be loaded for tube %s'
+                    return nil, msg:format(tube_opts.driver, tube_name)
+                end
+            end
+        end
+    end
+
+    return true
+end
+
+function utils.validate_cfg(cfg)
+    if cfg == nil then
         return true
     end
 
-    cfg = cfg['cfg']
     if type(cfg) ~= 'table' then
         return nil, '"cfg" must be a table'
     end
