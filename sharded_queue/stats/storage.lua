@@ -1,6 +1,7 @@
 ---- Module used to store storage-specific statistics.
 
 local state = require('sharded_queue.state')
+local vshard_utils = require('sharded_queue.storage.vshard_utils')
 
 local statistics = {}
 
@@ -17,6 +18,7 @@ local actions = {
 }
 
 function statistics.init()
+    local user = vshard_utils.get_this_replica_user() or 'guest'
     local space_stat = box.schema.space.create('_queue_statistics',
         { if_not_exists = true })
     space_stat:format({
@@ -39,6 +41,9 @@ function statistics.init()
         },
         if_not_exists = true
     })
+
+    box.schema.user.grant(user, 'read,write', 'space', '_queue_statistics',
+        {if_not_exists = true})
 end
 
 function statistics.update(tube_name, stat_name, operation, value)

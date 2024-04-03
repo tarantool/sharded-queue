@@ -39,15 +39,19 @@ build:
 
 .PHONY: deps
 deps:
-	$(TTCTL) rocks install cartridge 2.8.0
+	$(TTCTL) rocks install vshard 0.1.26
 	$(TTCTL) rocks install luacheck 0.26.0
 	$(TTCTL) rocks install luacov 0.13.0
 	$(TTCTL) rocks install luacov-coveralls 0.2.3-1 --server=http://luarocks.org
-	$(TTCTL) rocks install luatest 0.5.7
+	$(TTCTL) rocks install luatest 1.0.1
 
-.PHONY: deps-full
-deps-full: deps
-	tarantoolctl rocks install metrics 1.0.0
+.PHONY: deps-cartridge
+deps-cartridge: deps-cartridge
+	$(TTCTL) rocks install cartridge 2.9.0
+
+.PHONY: deps-metrics
+deps-metrics: deps-metrics
+	$(TTCTL) rocks install metrics 1.0.0
 
 .PHONY: lint
 lint:

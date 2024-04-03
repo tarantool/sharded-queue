@@ -1,14 +1,12 @@
-#!/usr/bin/env tarantool
-
 local t = require('luatest')
 local g = t.group('storage')
 
-local config = require('test.helper.config')
+local helper = require('test.helper')
 local methods = require('sharded_queue.storage.methods')
 
 g.before_all(function()
-    g.storage_master = config.cluster:server('queue-storage-1-0').net_box
-    g.storage_ro = config.cluster:server('queue-storage-1-1').net_box
+    g.storage_master = helper.get_evaler('queue-storage-1-0')
+    g.storage_ro = helper.get_evaler('queue-storage-1-1')
 end)
 
 g.test_storage_methods = function()

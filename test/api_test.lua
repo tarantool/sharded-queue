@@ -3,20 +3,21 @@
 local t = require('luatest')
 local g = t.group('api')
 
-local api = require('sharded_queue.api')
-local config = require('test.helper.config')
+local _, api = pcall(require, 'sharded_queue.api')
+local helper = require('test.helper')
 local utils = require('test.helper.utils')
 local tube = require('sharded_queue.router.tube')
 local is_metrics_supported = utils.is_metrics_supported()
 
 g.before_all(function()
-    g.queue_conn = config.cluster:server('queue-router').net_box
-    g.queue_conn_ro = config.cluster:server('queue-router-1').net_box
-    g.cfg = g.queue_conn:eval("return require('sharded_queue.api').cfg")
+    t.skip_if(utils.is_tarantool_3(), 'the role is available only for Cartridge')
+    g.queue_conn = helper.get_evaler('queue-router')
+    g.queue_conn_ro = helper.get_evaler('queue-router-1')
+    g.cfg = helper.get_cfg()
 end)
 
 g.after_each(function()
-    g.queue_conn:eval("require('sharded_queue.api').cfg(...)", {g.cfg})
+    helper.set_cfg(g.cfg)
 end)
 
 g.test_exported_api = function()
@@ -115,8 +116,8 @@ g.test_role_statistics_read_only_router = function()
 end
 
 g.test_api_version = function()
-    local api_conn = config.cluster:server('queue-router').net_box
-    local storage_conn = config.cluster:server('queue-storage-1-0').net_box
+    local api_conn = helper.get_evaler('queue-router')
+    local storage_conn = helper.get_evaler('queue-storage-1-0')
 
     local api_version = api_conn:eval(
         "return require('sharded_queue.api')._VERSION"

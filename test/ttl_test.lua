@@ -1,22 +1,25 @@
 local t = require('luatest')
 local g = t.group('ttl_test')
 
-local config = require('test.helper.config')
+local helper = require('test.helper')
 local utils = require('test.helper.utils')
 local fiber = require('fiber')
 
 g.before_all(function()
-    g.queue_conn = config.cluster:server('queue-router').net_box
+    g.queue_conn = helper.get_evaler('queue-router')
 end)
 
-local function lookup_task(task_id, tube_name, cluster)
+local function lookup_task(task_id, tube_name)
     local call_string = ("return box.space.%s:get(%s):tomap({names_only=true})"):format(tube_name, task_id)
     local ok, stored_task
-    for _, server in pairs(cluster.servers) do
+    for server, _ in pairs(helper.servers) do
         ok, stored_task = pcall(function()
-            return server.net_box:eval(call_string)
+            local evaler = helper.get_evaler(server)
+            return evaler:eval(call_string)
         end)
-        if ok then break end
+        if ok then
+            break
+        end
     end
     return stored_task
 end
@@ -24,16 +27,13 @@ end
 function g.test_fifottl_config()
     local tube_name = 'test_fifottl_config'
     local tube_options = { ttl = 43, ttr = 15, priority = 17, wait_factor = 1 }
-    g.queue_conn:call('queue.create_tube', {
-        tube_name,
-        tube_options
-    })
+    helper.create_tube(tube_name, tube_options)
 
     local task_id = g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), {
         'simple data',
     })[1]
 
-    local stored_task = lookup_task(task_id, tube_name, config.cluster)
+    local stored_task = lookup_task(task_id, tube_name)
 
     t.assert_equals(stored_task.ttl, tube_options.ttl * 1000000)
     t.assert_equals(stored_task.ttr, tube_options.ttr * 1000000)
@@ -43,31 +43,23 @@ end
 function g.test_fifottl_config_pri()
     local tube_name = 'test_fifottl_config_pri'
     local tube_options = { ttl = 43, ttr = 15, pri = 15, wait_factor = 1 }
-    g.queue_conn:call('queue.create_tube', {
-        tube_name,
-        tube_options
-    })
+    helper.create_tube(tube_name, tube_options)
 
     local task_id = g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), {
         'simple data',
     })[1]
 
-    local stored_task = lookup_task(task_id, tube_name, config.cluster)
+    local stored_task = lookup_task(task_id, tube_name)
     t.assert_equals(stored_task.priority, tube_options.pri)
 
     task_id = g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), { 'simple data', {pri = 18}})[1]
-    stored_task = lookup_task(task_id, tube_name, config.cluster)
+    stored_task = lookup_task(task_id, tube_name)
     t.assert_equals(stored_task.priority, 18)
 end
 
 function g.test_touch_task()
     local tube_name = 'touch_task_test'
-    g.queue_conn:call('queue.create_tube', {
-        tube_name,
-        {
-            wait_factor = 1,
-        }
-    })
+    helper.create_tube(tube_name, {wait_factor = 1})
 
     local task = g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), {
         'simple data',
@@ -98,12 +90,7 @@ end
 
 function g.test_delayed_tasks()
     local tube_name = 'delayed_tasks_test'
-    g.queue_conn:call('queue.create_tube', {
-        tube_name,
-        {
-            wait_factor = 1,
-        }
-    })
+    helper.create_tube(tube_name, {wait_factor = 1})
     -- task delayed for 0.1 sec
     local task = g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), {
         'simple data',
@@ -153,14 +140,14 @@ end
 
 function g.test_ttr_release_no_delete_task()
     local tube_name = 'ttr_release_no_delete_task_test'
-    g.queue_conn:call('queue.create_tube', {
+    helper.create_tube(
         tube_name,
         {
             wait_factor = 1,
             ttr = 0.2,
             log_request = true,
         }
-    })
+    )
 
     g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), {
         'simple data',
@@ -183,14 +170,14 @@ end
 
 function g.test_ttr_bury_no_delete_task()
     local tube_name = 'ttr_bury_no_delete_task_test'
-    g.queue_conn:call('queue.create_tube', {
+    helper.create_tube(
         tube_name,
         {
             wait_factor = 1,
             ttr = 0.2,
             log_request = true,
         }
-    })
+    )
 
     g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), {
         'simple data',

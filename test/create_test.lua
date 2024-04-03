@@ -1,11 +1,10 @@
 local t = require('luatest')
 local g = t.group('create_test')
 
-local config = require('test.helper.config')
+local helper = require('test.helper')
 
 g.before_all(function()
-    g.api = config.cluster:server('queue-router').net_box
-    g.storage = config.cluster:server('queue-storage-1-0').net_box
+    g.storage = helper.get_evaler('queue-storage-1-0')
 end)
 
 for test_name, options in pairs({
@@ -19,9 +18,7 @@ for test_name, options in pairs({
 }) do
     g['test_create_tube_defauls_' .. test_name] = function()
         local tube_name = 'creates_tube_defaults_' .. test_name .. '_test'
-            g.api:call('queue.create_tube', {
-            tube_name, options
-        })
+        helper.create_tube(tube_name, options)
 
         local space = g.storage:eval(string.format([[
             local space = box.space.%s
@@ -61,9 +58,7 @@ for test_name, options in pairs({
 }) do
     g['test_create_tube_opts' .. test_name] = function()
         local tube_name = 'create_tube_opts_' .. test_name .. '_test'
-            g.api:call('queue.create_tube', {
-            tube_name, options
-        })
+        helper.create_tube(tube_name, options)
 
         local space = g.storage:eval(string.format([[
             local space = box.space.%s

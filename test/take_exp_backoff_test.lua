@@ -1,18 +1,12 @@
 local t = require('luatest')
 local g = t.group('exponential_backoff_test')
 
-local log = require('log') -- luacheck: ignore
-
-local config = require('test.helper.config')
+local helper = require('test.helper')
 local utils = require('test.helper.utils')
 local fiber = require('fiber')
 
 g.before_all(function()
-    --- Workaround for https://github.com/tarantool/cartridge/issues/462
-    config.cluster:server('queue-router').net_box:close()
-    config.cluster:server('queue-router').net_box = nil
-    config.cluster:server('queue-router'):connect_net_box()
-    g.queue_conn = config.cluster:server('queue-router').net_box
+    g.queue_conn = helper.get_evaler('queue-router')
 end)
 
 local function task_take(tube_name, timeout, channel, options)
@@ -25,9 +19,7 @@ end
 
 function g.test_default_wait_factor()
     local tube_name = 'test_default_wait_factor'
-    g.queue_conn:call('queue.create_tube', {
-        tube_name
-    })
+    helper.create_tube(tube_name)
 
     local timeout = 10 -- second
     local attemts = 8 -- attempts count
@@ -35,7 +27,7 @@ function g.test_default_wait_factor()
     local take_time_expected = 0.01*(math.pow(2, attemts+1) - 1) -- 5.12
 
     local channel = fiber.channel(2)
-	local start = fiber.time64()
+    local start = fiber.time64()
     fiber.create(task_take, tube_name, timeout, channel)
 
     fiber.sleep(put_wait + 1)
@@ -62,17 +54,12 @@ function g.test_success()
     -- expected time is 1.56 in case wait_factor = 5
 
     local tube_name = 'test_success_exp_backoff'
-    g.queue_conn:call('queue.create_tube', {
-        tube_name,
-        {
-            wait_factor = 5,
-        }
-    })
+    helper.create_tube(tube_name, {wait_factor = 5})
 
     local timeout = 10
 
     local channel = fiber.channel(2)
-	local start = fiber.time64()
+    local start = fiber.time64()
     fiber.create(task_take, tube_name, timeout, channel)
 
     fiber.sleep(1)
@@ -88,53 +75,35 @@ function g.test_success()
 end
 
 function g.test_invalid_factors()
-
     local tube_name = 'test_tinvalid_factors'
 
-    t.assert_error_msg_contains('wait_factor', g.queue_conn.call,
-        g.queue_conn,
-        'queue.create_tube',
-        { tube_name, {
-            wait_factor = 0.5,
-        }
-    })
+    t.assert_error_msg_contains('wait_factor', helper.create_tube,
+        tube_name, {wait_factor = 0.5}
+    )
 
-    t.assert_error_msg_contains('wait_factor', g.queue_conn.call,
-        g.queue_conn,
-        'queue.create_tube',
-        { tube_name, {
-            wait_factor = 'not factor',
-        }
-    })
+    t.assert_error_msg_contains('wait_factor', helper.create_tube,
+        tube_name, {wait_factor = 'not factor'}
+    )
+
+    helper.drop_tube(tube_name)
 end
 
 function g.test_invalid_wait_max()
-
     local tube_name = 'test_invalid_wait_max'
 
-    t.assert_error_msg_contains('wait_max', g.queue_conn.call,
-        g.queue_conn,
-        'queue.create_tube',
-        { tube_name, {
-            wait_max = -8,
-        }
-    })
+    t.assert_error_msg_contains('wait_max', helper.create_tube,
+        tube_name, {wait_max = -8}
+    )
 
-    t.assert_error_msg_contains('wait_max', g.queue_conn.call,
-        g.queue_conn,
-        'queue.create_tube',
-        { tube_name, {
-            wait_max = 0,
-        }
-    })
+    t.assert_error_msg_contains('wait_max', helper.create_tube,
+        tube_name, {wait_max = 0}
+    )
 
-    t.assert_error_msg_contains('wait_max', g.queue_conn.call,
-        g.queue_conn,
-        'queue.create_tube',
-        { tube_name, {
-            wait_max = 'not number',
-        }
-    })
+    t.assert_error_msg_contains('wait_max', helper.create_tube,
+        tube_name, {wait_max = 'not number'}
+    )
+
+    helper.drop_tube(tube_name)
 end
 
 function g.test_invalid_wait_max_on_take()
@@ -151,18 +120,18 @@ function g.test_invalid_wait_max_on_take()
     -- expected time is 3.31 in case wait_factor = 5
 
     local tube_name = 'test_invalid_wait_max_on_take'
-    g.queue_conn:call('queue.create_tube', {
+    helper.create_tube(
         tube_name,
         {
             wait_factor = 5,
             wait_max = 1,
         }
-    })
+    )
 
     local timeout = 10
 
     local channel = fiber.channel(2)
-	local start = fiber.time64()
+    local start = fiber.time64()
     fiber.create(task_take, tube_name, timeout, channel, {
         wait_max = -10, -- invalid wait_factor, using 0.3
     })
@@ -197,16 +166,11 @@ function g.test_wait_max_on_tube()
     -- expected time is 3.27
 
     local tube_name = 'test_wait_max_on_take_tube'
-    g.queue_conn:call('queue.create_tube', {
-        tube_name,
-        {
-            wait_max = 1,
-        }
-    })
+    helper.create_tube(tube_name, {wait_max = 1})
 
     local timeout = 10
     local channel = fiber.channel(2)
-	local start = fiber.time64()
+    local start = fiber.time64()
     fiber.create(task_take, tube_name, timeout, channel)
 
     fiber.sleep(2.8)
@@ -240,17 +204,16 @@ function g.test_wait_max_in_take()
     -- expected time is 3.27
 
     local tube_name = 'test_wait_max_in_take_tube'
-    g.queue_conn:call('queue.create_tube', {
-        tube_name,
+    helper.create_tube(tube_name,
         {
             wait_factor = 2,
             wait_max = 100,
         }
-    })
+    )
 
     local timeout = 10
     local channel = fiber.channel(2)
-	local start = fiber.time64()
+    local start = fiber.time64()
     fiber.create(task_take, tube_name, timeout, channel, {wait_max = 1.0})
 
     fiber.sleep(2.8)

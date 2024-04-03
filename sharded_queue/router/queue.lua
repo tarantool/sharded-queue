@@ -46,35 +46,7 @@ end
 -- The Tarantool 3.0 does not support to update dinamically a configuration, so
 -- a user must update the configuration by itself.
 if is_cartridge_package then
-    local function validate_options(options)
-        if not options then return true end
-
-        if options.wait_factor then
-            if type(options.wait_factor) ~= 'number'
-                or options.wait_factor < 1
-            then
-                return false, "wait_factor must be number greater than or equal to 1"
-            end
-        end
-
-        local _, err = utils.normalize.log_request(options.log_request)
-        if err then
-            return false, err
-        end
-
-        if options.wait_max ~= nil then
-            local err
-            options.wait_max, err = utils.normalize.wait_max(options.wait_max)
-            if err ~= nil then
-                return false, err
-            end
-        end
-
-        return true
-    end
-
     queue_global.create_tube = function(tube_name, options)
-        require('log').info("CREATE TUBE")
         local tubes = cartridge.config_get_deepcopy('tubes') or {}
 
         if tube_name == 'cfg' then
@@ -85,7 +57,7 @@ if is_cartridge_package then
             return nil
         end
 
-        local ok , err = validate_options(options)
+        local ok, err = utils.validate_options(options)
         if not ok then error(err) end
 
         options = table.deepcopy(options or {})
@@ -105,6 +77,10 @@ end
 
 local function export_globals()
     rawset(_G, 'queue', queue_global)
+end
+
+local function clear_globals()
+    rawset(_G, 'queue', nil)
 end
 
 local function add(name, metrics, options)

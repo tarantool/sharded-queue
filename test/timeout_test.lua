@@ -1,18 +1,12 @@
 local t = require('luatest')
 local g = t.group('timeout_test')
 
-local log = require('log') -- luacheck: ignore
-
-local config = require('test.helper.config')
+local helper = require('test.helper')
 local utils = require('test.helper.utils')
 local fiber = require('fiber')
 
 g.before_all(function()
-    --- Workaround for https://github.com/tarantool/cartridge/issues/462
-    config.cluster:server('queue-router').net_box:close()
-    config.cluster:server('queue-router').net_box = nil
-    config.cluster:server('queue-router'):connect_net_box()
-    g.queue_conn = config.cluster:server('queue-router').net_box
+    g.queue_conn = helper.get_evaler('queue-router')
 end)
 
 local function task_take(tube_name, timeout, channel)
@@ -31,12 +25,7 @@ function g.test_try_waiting()
     -- CHECK uptime and value - nil
 
     local tube_name = 'try_waiting_test'
-    g.queue_conn:call('queue.create_tube', {
-        tube_name,
-        {
-            wait_factor = 1,
-        }
-    })
+    helper.create_tube(tube_name, {wait_factor = 1})
 
     local timeout = 3 -- second
 
@@ -62,12 +51,7 @@ function g.test_wait_put_taking()
     -- CHEK what was taken successfully
 
     local tube_name = 'wait_put_taking_test'
-    g.queue_conn:call('queue.create_tube', {
-        tube_name,
-        {
-            wait_factor = 1,
-        }
-    })
+    helper.create_tube(tube_name, {wait_factor = 1})
 
     local timeout = 3
 

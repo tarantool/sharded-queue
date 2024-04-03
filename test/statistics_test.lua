@@ -1,19 +1,17 @@
 local t = require('luatest')
 local g = t.group('statistics_test')
 
-local config = require('test.helper.config')
+local helper = require('test.helper')
 local utils = require('test.helper.utils')
 local fiber = require('fiber')
 
 g.before_all(function()
-    g.queue_conn = config.cluster:server('queue-router').net_box
+    g.queue_conn = helper.get_evaler('queue-router')
 end)
 
 function g.test_statistics()
     local tube_name = 'statistics_test'
-    g.queue_conn:call('queue.create_tube', {
-        tube_name
-    })
+    helper.create_tube(tube_name)
 
     local task_count = 64
     local middle = 32
