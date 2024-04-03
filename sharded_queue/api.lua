@@ -540,7 +540,12 @@ local function init(opts)
 end
 
 local function validate_config(cfg)
-    return utils.validate_config_cfg(cfg)
+    local cfg_tubes = cfg.tubes or {}
+    local ok, err = utils.validate_tubes(cfg_tubes, false)
+    if not ok then
+        return ok, err
+    end
+    return utils.validate_cfg(cfg_tubes['cfg'])
 end
 
 local function apply_config(cfg, opts)

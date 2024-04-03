@@ -3,9 +3,8 @@
 local t = require('luatest')
 local g = t.group('storage')
 
-local storage = require('sharded_queue.storage')
 local config = require('test.helper.config')
-
+local methods = require('sharded_queue.storage.methods')
 
 g.before_all(function()
     g.storage_master = config.cluster:server('queue-storage-1-0').net_box
@@ -17,7 +16,7 @@ g.test_storage_methods = function()
     local ro = g.storage_ro:eval("return box.cfg.read_only")
     t.assert_equals(ro, true)
 
-    for _,method  in pairs(storage.__private.methods) do
+    for _, method  in pairs(methods.get_list()) do
         local global_name = 'tube_' .. method
         -- Master storage
        t.assert_equals(g.storage_master:eval(string.format('return box.schema.func.exists("%s")', global_name)), true)
