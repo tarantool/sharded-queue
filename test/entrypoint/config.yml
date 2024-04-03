@@ -1,0 +1,70 @@
+credentials:
+  users:
+    guest:
+      roles: [super]
+    storage:
+      roles: [sharding]
+      password: "storage"
+
+iproto:
+  listen:
+    - uri: 'unix/:./{{ instance_name }}.iproto'
+  advertise:
+    sharding:
+      login: 'storage'
+      password: 'storage'
+
+sharding:
+  bucket_count: 1234
+  sched_ref_quota: 258
+
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        sharding:
+          roles: [router]
+        roles:
+          - roles.sharded-queue-router
+        database:
+          replicaset_uuid: 'aaaaaaaa-0000-4000-b000-000000000000'
+        instances:
+          queue-router:
+            database:
+              instance_uuid: 'aaaaaaaa-aaaa-4000-b000-000000000001'
+              mode: rw
+          queue-router-1:
+            database:
+              instance_uuid: 'aaaaaaaa-aaaa-4000-b000-000000000002'
+      replicaset-002:
+        sharding:
+          roles: [storage]
+        roles:
+          - roles.sharded-queue-storage
+        database:
+          replicaset_uuid: 'bbbbbbbb-bbbb-4000-b000-000000000001'
+        instances:
+          queue-storage-1-0:
+            database:
+              instance_uuid: 'bbbbbbbb-bbbb-4000-b000-000000000001'
+              mode: rw
+          queue-storage-1-1:
+            database:
+              instance_uuid: 'bbbbbbbb-bbbb-4000-b000-000000000002'
+              mode: ro
+      replicaset-003:
+        sharding:
+          roles: [storage]
+        roles:
+          - roles.sharded-queue-storage
+        database:
+          replicaset_uuid: 'cccccccc-0000-4000-b000-000000000000'
+        instances:
+          queue-storage-2-0:
+            database:
+              instance_uuid: 'cccccccc-cccc-4000-b000-000000000001'
+              mode: rw
+          queue-storage-2-1:
+            database:
+              instance_uuid: 'cccccccc-cccc-4000-b000-000000000002'
+              mode: ro

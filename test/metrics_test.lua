@@ -1,13 +1,13 @@
 local t = require('luatest')
 local g = t.group('metrics_test')
 
-local config = require('test.helper.config')
+local helper = require('test.helper')
 local json = require('json')
 local utils = require('test.helper.utils')
 
 g.before_all(function()
-    g.queue_conn = config.cluster:server('queue-router').net_box
-    g.cfg = g.queue_conn:eval("return require('sharded_queue.api').cfg")
+    g.queue_conn = helper.get_evaler('queue-router')
+    g.cfg = helper.get_cfg()
 end)
 
 g.before_each(function()
@@ -17,7 +17,7 @@ g.before_each(function()
 end)
 
 g.after_each(function()
-    g.queue_conn:eval("require('sharded_queue.api').cfg(...)", {g.cfg})
+    helper.set_cfg(g.cfg)
 end)
 
 local function filter_metrics(metrics, labels)
@@ -45,10 +45,11 @@ local metrics = require('metrics')
 metrics.invoke_callbacks()
 return metrics.collect()
 ]]
+
     if instance == nil then
         metrics = g.queue_conn:eval(eval)
     else
-        metrics = config.cluster:server(instance).net_box:eval(eval)
+        metrics = helper.eval(instance, eval)
     end
 
     for _, v in ipairs(metrics) do
@@ -67,6 +68,9 @@ local function merge_metrics(first, second)
         local found = false
         for _, f in pairs(first) do
             if f.metric_name == s.metric_name then
+                -- It clears the storage name.
+                f.label_pairs.alias = nil
+                s.label_pairs.alias = nil
                 if json.encode(f.label_pairs) == json.encode(s.label_pairs) then
                     found = true
                     f.value = f.value + s.value
@@ -111,7 +115,6 @@ local function assert_metric(metrics, name, label, values, filters)
 
     for k, v in pairs(values) do
         local filtered = filter_metrics(metric, {[label] = k})
-        json.encode(filtered)
         t.assert_equals(#filtered, 1, label .. "_" .. k)
         t.assert_equals(filtered[1].value, v, label .. "_" .. k)
     end
@@ -119,9 +122,8 @@ end
 
 g.test_metrics_api = function()
     local tube_name = 'metrics_api_test'
-    g.queue_conn:call('queue.create_tube', {
-        tube_name
-    })
+    helper.create_tube(tube_name)
+    g.queue_conn = helper.get_evaler('queue-router')
 
     local task_count = 64
     for i = 1, task_count do
@@ -191,12 +193,8 @@ end
 
 g.test_metrics_api_disabled = function()
     local tube_name = 'metrics_api_disabled_test'
-    g.queue_conn:eval("require('sharded_queue.api').cfg(...)",
-        {{metrics = false}})
-
-    g.queue_conn:call('queue.create_tube', {
-        tube_name
-    })
+    helper.set_cfg({metrics = false})
+    helper.create_tube(tube_name)
 
     g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), {
         1, { delay = 3 , ttl = 3, ttr = 1}
@@ -214,9 +212,7 @@ end
 
 g.test_metrics_api_disable = function()
     local tube_name = 'metrics_api_disable_test'
-    g.queue_conn:call('queue.create_tube', {
-        tube_name
-    })
+    helper.create_tube(tube_name)
 
     g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), {
         1, { delay = 3 , ttl = 3, ttr = 1}
@@ -243,8 +239,7 @@ g.test_metrics_api_disable = function()
     t.assert_not_equals(get_metric(metrics, "tnt_sharded_queue_storage_role_stats_sum"), {})
     t.assert_not_equals(get_metric(metrics, "tnt_sharded_queue_storage_role_stats_count"), {})
 
-    g.queue_conn:eval("require('sharded_queue.api').cfg(...)",
-        {{metrics = false}})
+    helper.set_cfg({metrics = false})
 
     metrics = get_router_metrics(tube_name)
     t.assert_equals(metrics, {})
@@ -259,11 +254,9 @@ end
 
 g.test_metrics_storage = function()
     local tube_name = 'metrics_storage_test'
-    g.queue_conn:call('queue.create_tube', {
-        tube_name
-    })
+    helper.create_tube(tube_name)
 
-    local storage = config.cluster:server('queue-storage-1-0').net_box
+    local storage = helper.get_evaler('queue-storage-1-0')
     local methods = {
         'statistic',
         'put',

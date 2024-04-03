@@ -18,34 +18,74 @@ jobs:
       fail-fast: false
       matrix:
         tarantool:
-          - '1.10'
           - '2.8'
-        metrics:
-          - ''
-          - '1.0.0'
+          - '2.10'
+        cartridge: [true]
         coveralls: [false]
+        metrics: [false]
         include:
           - tarantool: '2.11'
-            metrics: '1.0.0'
+            cartridge: true
             coveralls: true
+            metrics: true
+          - tarantool: 'master'
+            cartridge: false
+            coveralls: false
+            metrics: false
 
     runs-on: ubuntu-20.04
     steps:
-      - name: Install tarantool ${{ matrix.tarantool }}
-        uses: tarantool/setup-tarantool@v2
-        with:
-          tarantool-version: ${{ matrix.tarantool }}
-
       - name: Clone the module
         uses: actions/checkout@v3
 
-      - name: Install requirements
-        run: make deps
-
-      - name: Install metrics
-        if: matrix.metrics != ''
+      - name: Setup tt
         run: |
-          tarantoolctl rocks install metrics ${{ matrix.metrics }}
+          curl -L https://tarantool.io/release/2/installer.sh | sudo bash
+          sudo apt install -y tt
+
+      - name: Install tarantool ${{ matrix.tarantool }}
+        uses: tarantool/setup-tarantool@v3
+        with:
+          tarantool-version: ${{ matrix.tarantool }}
+        if: matrix.tarantool != 'master'
+
+      - name: Get Tarantool master latest commit
+        if: matrix.tarantool == 'master'
+        run: |
+          commit_hash=$(git ls-remote https://github.com/tarantool/tarantool.git --branch master | head -c 8)
+          echo "LATEST_COMMIT=${commit_hash}" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Cache Tarantool master
+        if: matrix.tarantool == 'master'
+        id: cache-latest
+        uses: actions/cache@v3
+        with:
+          path: "${GITHUB_WORKSPACE}/bin"
+          key: cache-latest-${{ env.LATEST_COMMIT }}
+
+      - name: Setup Tarantool CE (master)
+        if: matrix.tarantool == 'master' && steps.cache-latest.outputs.cache-hit != 'true'
+        run: |
+          tt init
+          tt install tarantool master
+
+      - name: Add tt Tarantool to PATH
+        if: matrix.tarantool == 'master'
+        run: echo "${GITHUB_WORKSPACE}/bin" >> $GITHUB_PATH
+
+      - name: Install requirements
+        run: |
+          tarantool --version
+          make deps
+
+      - name: Install Cartridge requirements
+        run: make deps-cartridge
+        if: ${{ matrix.cartridge }}
+
+      - name: Install metrics requirements
+        run: make deps-metrics
+        if: ${{ matrix.metrics }}
 
       - name: Run linter
         run: make lint

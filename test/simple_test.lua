@@ -1,11 +1,11 @@
 local t = require('luatest')
 local g = t.group('simple_test')
 
-local config = require('test.helper.config')
+local helper = require('test.helper')
 local utils = require('test.helper.utils')
 
 g.before_all(function()
-    g.queue_conn = config.cluster:server('queue-router').net_box
+    g.queue_conn = helper.get_evaler('queue-router')
 end)
 
 for test_name, options in pairs({
@@ -18,10 +18,7 @@ for test_name, options in pairs({
     g['test_put_taken_' .. test_name] = function()
         local tube_name = 'put_taken_test_' .. test_name
 
-        g.queue_conn:call('queue.create_tube', {
-            tube_name,
-            options
-        })
+        helper.create_tube(tube_name, options)
 
         -- tasks data for putting
         local task_count = 100
@@ -36,12 +33,10 @@ for test_name, options in pairs({
         local task_ids = {}
         for _, data in pairs(tasks_data) do
             local task = g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), { data })
-
             local peek_task = g.queue_conn:call(utils.shape_cmd(tube_name, 'peek'),
                     {
                         task[utils.index.task_id]
                     })
-
             t.assert_equals(peek_task[utils.index.status], utils.state.READY)
             task_ids[task[utils.index.task_id]] = true
         end
@@ -73,13 +68,12 @@ end
 
 g.test_take_with_options = function()
     local tube_name = 'test_take_with_options'
-    g.queue_conn:call('queue.create_tube', {
-        tube_name,
+    helper.create_tube(tube_name,
         {
             temporary = true,
             driver = 'sharded_queue.drivers.fifo',
         }
-    })
+    )
     local options, timeout, data = {}, 1, 'data'
 
     for _, take_args in pairs({{}, {timeout}, {timeout, options}, {box.NULL, options}}) do
@@ -90,20 +84,19 @@ g.test_take_with_options = function()
 end
 
 function g.test_invalid_driver()
-    t.assert_error_msg_contains('Driver unexistent could not be loaded', function() g.queue_conn:call('queue.create_tube', {
+    t.assert_error_msg_contains('Driver unexistent could not be loaded', function() helper.create_tube(
         'invalid',
         {
             driver = 'unexistent'
         }
-    })
+    )
     end)
+    helper.drop_tube('invalid')
 end
 
 function g.test_delete()
     local tube_name = 'delete_test'
-    g.queue_conn:call('queue.create_tube', {
-        tube_name
-    })
+    helper.create_tube(tube_name)
 
     -- task data for putting
     local task_count = 20
@@ -167,9 +160,7 @@ end
 
 function g.test_release()
     local tube_name = 'release_test'
-        g.queue_conn:call('queue.create_tube', {
-        tube_name
-    })
+    helper.create_tube(tube_name)
 
     local task_count = 10
     local tasks_data = {}
@@ -227,9 +218,7 @@ end
 
 function g.test_bury_kick()
     local tube_name = 'bury_kick_test'
-    g.queue_conn:call('queue.create_tube', {
-        tube_name
-    })
+    helper.create_tube(tube_name)
 
     local cur_stat
 

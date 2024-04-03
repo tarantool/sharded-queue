@@ -3,6 +3,7 @@ local state = require('sharded_queue.state')
 local utils = require('sharded_queue.utils')
 local stats = require('sharded_queue.stats.storage')
 local time  = require('sharded_queue.time')
+local vshard_utils = require('sharded_queue.storage.vshard_utils')
 local log = require('log') -- luacheck: ignore
 
 local index = {
@@ -136,6 +137,7 @@ end
 -- QUEUE METHODs --
 
 local function tube_create(args)
+    local user = vshard_utils.get_this_replica_user() or 'guest'
     local space_options = {}
     local if_not_exists = args.options.if_not_exists or true
     space_options.if_not_exists = if_not_exists
@@ -200,6 +202,9 @@ local function tube_create(args)
         unique = false,
         if_not_exists = if_not_exists
     })
+
+    box.schema.user.grant(user, 'read,write', 'space', args.name,
+        {if_not_exists = true})
 
     -- run fiber for tracking event
     fiber.create(fiber_common, args.name)

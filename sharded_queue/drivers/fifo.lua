@@ -2,6 +2,7 @@ local state = require('sharded_queue.state')
 local utils = require('sharded_queue.utils')
 local log = require('log') -- luacheck: ignore
 local stats = require('sharded_queue.stats.storage')
+local vshard_utils = require('sharded_queue.storage.vshard_utils')
 
 local function update_stat(tube_name, name)
     stats.update(tube_name, name, '+', 1)
@@ -10,6 +11,7 @@ end
 local method = {}
 
 local function tube_create(args)
+    local user = vshard_utils.get_this_replica_user() or 'guest'
     local space_options = {}
     local if_not_exists = args.options.if_not_exists or true
     space_options.if_not_exists = if_not_exists
@@ -46,6 +48,9 @@ local function tube_create(args)
         parts = { 'bucket_id', 'index' },
         if_not_exists = if_not_exists
     })
+
+    box.schema.user.grant(user, 'read,write', 'space', args.name,
+        {if_not_exists = true})
 
     return space
 end

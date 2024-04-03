@@ -1,7 +1,7 @@
-
 # Tarantool Sharded Queue Application
 
-This module provides cartridge roles implementing of a distributed queue compatible with [Tarantool queue](https://github.com/tarantool/queue) (*fifiottl driver*)
+This module provides roles for the Tarantool 3 and for the Tarantool
+Cartridge implementing of a distributed queue compatible with [Tarantool queue](https://github.com/tarantool/queue) (*fifiottl driver*)
 
 ```mermaid
 flowchart TB
@@ -50,9 +50,29 @@ flowchart TB
     end
 ```
 
-## Usage in a cartridge application
+## Usage in a Tarantool 3 application
 
-1. Add dependency to your application rockspec
+You need to install the Tarantool 3.0.2+ or 3.1+.
+
+1. Add a dependency to your application rockspec.
+2. Enable `roles.sharded-queue-router` role on all sharding `router` instances.
+3. Enable `roles.sharded-queue-storage` role on all sharding `storage`
+   instances.
+4. Configure tubes for the `roles.sharded-queue-storage` role the same for all
+   storage instances.
+5. Do not forget to bootstrap the vshard in your application. See
+   [init.lua](./init.lua) as an example.
+
+You could see a full example of the configuration in the [config.yaml](./config.yaml).
+
+Be careful, it is impossible to create or drop tubes dynamically by API calls
+with Tarantool 3. You need to update the role configuration instead.
+
+## Usage in a Tarantool Cartridge application
+
+1. Add a dependency to your application rockspec. You need to make sure that
+the dependency of the Tarantool Cartridge 2.9.0 is enabled because the
+`sharded-queue` does not have it by default.
 2. Add roles to your application:
 ```init.lua
 cartridge.cfg({
@@ -74,13 +94,13 @@ cartridge.cfg({
 ## Usage as a ready-to-deploy service
 
 Prepare `tt` environment:
-```
+```shell
 tt init
 git clone https://github.com/tarantool/sharded-queue instances.enabled/sharded-queue
 ```
 
 Run:
-```
+```shell
 tt pack --app-list sharded-queue rpm --version 1.0.0
 ```
 
@@ -90,10 +110,10 @@ For more details refer to [tt](https://github.com/tarantool/tt/)
 
 ## Usage from client perspective
 
-The good old queue api is located on all instances of the router masters that we launched.
-For a test configuration, this is one router on `localhost:3301`
+The good old queue api is located on all instances of the router masters that
+we launched. For a test configuration, this is one router on `localhost:3301`
 
-```
+```shell
 tarantool@user:~/sharded_queue$ tarantool
 Tarantool 1.10.3-6-gfbf53b9
 type 'help' for interactive help
@@ -117,7 +137,7 @@ tarantool> queue_conn:call('queue.tube.test_tube:take')
 
 ```
 
-You may also set up tubes using cluster-wide config:
+You may also set up tubes using Cartridge cluster-wide config:
 ```config.yml
 tubes:
      tube_1:
@@ -136,27 +156,26 @@ supported:
 * `metrics` - enable or disable stats collection by metrics.
   metrics >= 0.11.0 is required. It is enabled by default.
 
-## Running locally (as an example)
+## Running locally with Tarantool 3 (as an example)
 
 Prepare `tt` environment:
-```
+```shell
 tt init
 git clone https://github.com/tarantool/sharded-queue instances.enabled/sharded-queue
 ```
 
 Install dependencies:
-```
+```shell
 tt build sharded-queue
 ```
 
 Start default configuration:
-```
+```shell
 tt start sharded-queue
-tt cartridge replicasets setup --bootstrap-vshard --name sharded-queue
 ```
 
 To stop, say:
-```
+```shell
 tt stop sharded-queue
 ```
 
@@ -164,8 +183,10 @@ tt stop sharded-queue
     
 Say:
 
-```
+```shell
 make deps
+make deps-cartridge # For Tarantool < 3.
+make deps-metrics # For Tarantool < 3.
 make test
 ```
 
@@ -174,7 +195,7 @@ make test
 The module exports several metrics if the module `metrics` >= 0.11 is
 installed and the feature is not disabled by the configuration.
 
-### Role sharded_queue.api
+### Router (`roles.sharded-queue-router` or `sharded_queue.api` for the Cartridge)
 
 * Metric `tnt_sharded_queue_api_statistics_calls_total` is a counter with
   the number of requests broken down by [the type of request][queue-statistics].
@@ -205,7 +226,7 @@ installed and the feature is not disabled by the configuration.
   A list of possible call methods: `put`, `take`, `delete`, `release`, `touch`,
   `ack`, `bury`, `kick`, `peek`, `drop`.
 
-### Role sharded_queue.storage
+### Storage (`roles.sharded-queue-storage` or `sharded_queue.storage` for the Cartridge)
 
 * Metric `tnt_sharded_queue_storage_statistics_calls_total` is a counter with
   the number of requests broken down by [the type of request][queue-statistics].
@@ -268,6 +289,9 @@ installed and the feature is not disabled by the configuration.
     ```
 
     If you use **fifottl** driver (default), you can log driver's method calls with `log_request` (log router's and storage's operations).
+
+* You can not create or drop tubes by API calls with Tarantool 3. You need
+  to update the role configuration instead.
 
 [metrics-summary]: https://www.tarantool.io/en/doc/latest/book/monitoring/api_reference/#summary
 [queue-statistics]: https://github.com/tarantool/queue?tab=readme-ov-file#getting-statistics

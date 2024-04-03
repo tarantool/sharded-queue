@@ -1,5 +1,7 @@
 local fiber = require('fiber')
+
 local stats_storage = require('sharded_queue.stats.storage')
+local vshard_utils = require('sharded_queue.storage.vshard_utils')
 
 local methods = {
     'statistic',
@@ -15,10 +17,15 @@ local methods = {
 }
 
 local function init(metrics, tubes)
+    local user = vshard_utils.get_this_replica_user() or 'guest'
+
     for _, method in pairs(methods) do
         local func = function(args)
             args = args or {}
             args.options = tubes:get_options(args.tube_name) or {}
+            if args.options.priority == nil and args.options.pri ~= nil then
+                args.options.priority = args.options.pri
+            end
 
             local tube_name = args.tube_name
             local before = fiber.clock()
@@ -37,6 +44,8 @@ local function init(metrics, tubes)
         local global_name = 'tube_' .. method
         rawset(_G, global_name, func)
         box.schema.func.create(global_name, { if_not_exists = true })
+        box.schema.user.grant(user, 'execute', 'function', global_name,
+            {if_not_exists = true})
     end
 
     local tube_statistic_func = function(args)
@@ -55,6 +64,8 @@ local function init(metrics, tubes)
 
     rawset(_G, 'tube_statistic', tube_statistic_func)
     box.schema.func.create('tube_statistic', { if_not_exists = true })
+    box.schema.user.grant(user, 'execute', 'function', 'tube_statistic',
+        {if_not_exists = true})
 end
 
 local function get_list()

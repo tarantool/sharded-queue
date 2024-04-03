@@ -1,6 +1,8 @@
 local fio = require('fio')
 local t = require('luatest')
 local cartridge_helpers = require('cartridge.test-helpers')
+local utils = require('test.helper.utils')
+
 require('json').cfg { encode_use_tostring = true }
 
 local config = {}
@@ -8,7 +10,6 @@ local config = {}
 config.root = fio.dirname(fio.abspath(package.search('init')))
 
 config.datadir = fio.pathjoin(config.root, 'dev')
-config.unitdir = fio.pathjoin(config.datadir, 'unit')
 
 config.cluster = cartridge_helpers.Cluster:new({
     datadir = config.datadir,
@@ -82,18 +83,45 @@ config.cluster = cartridge_helpers.Cluster:new({
     }
 })
 
-t.before_suite(function ()
+function config.get_cfg()
+    return config.eval('queue-router', "return require('sharded_queue.api').cfg")
+end
+
+function config.set_cfg(cfg)
+    config.eval('queue-router', "require('sharded_queue.api').cfg(...)",
+        {cfg})
+end
+
+function config.create_tube(tube_name, options)
+    config.eval('queue-router', "queue.create_tube(...)", {tube_name, options})
+end
+
+function config.drop_tube(tube_name)
+    pcall(function()
+        config.eval('queue-router', utils.shape_cmd(tube_name, 'drop') .. "()")
+    end)
+end
+
+function config.eval(server, ...)
+    return config.cluster:server(server).net_box:eval(...)
+end
+
+function config.get_evaler(server)
+    return config.cluster:server(server).net_box
+end
+
+t.before_suite(function()
     fio.rmtree(config.datadir)
     fio.mktree(config.datadir)
     config.cluster:start()
-
-    fio.mktree(config.unitdir)
-    box.cfg{
-        work_dir=config.unitdir,
-        wal_mode='none'
-    }
+    config.servers = {}
+    for _, srv in pairs(config.cluster.servers) do
+        config.servers[srv.alias] = srv
+    end
 end)
 
-t.after_suite(function () config.cluster:stop() end)
+t.after_suite(function()
+    config.cluster:stop()
+end)
 
 return config

@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `tasks` table.
   The metric contains labels in the following format:
   `{name = "tube_name", state = "task_state"}`
+- Role `roles.sharded-queue-router` for Tarantool 3 (#68).
+- Role `roles.sharded-queue-storage` for Tarantool 3 (#68).
 
 ### Changed
 
@@ -44,6 +46,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `tnt_sharded_queue_api_statistics_tasks` (#71). The metric now has labels
   in the format `{name = "tube_name", state = "task_state"}` instead of
   `{name = "tube_name", status = "task_state"}`.
+- The dependency `cartridge` is removed from the `rockspec` since the module
+  does not require it to work with Tarantool 3 (#68).
 
 ### Fixed
 

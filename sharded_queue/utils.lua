@@ -74,6 +74,33 @@ function utils.normalize.wait_max(wait_max)
     return wait_max
 end
 
+function utils.validate_options(options)
+    if not options then return true end
+
+    if options.wait_factor then
+        if type(options.wait_factor) ~= 'number'
+            or options.wait_factor < 1
+        then
+            return false, "wait_factor must be number greater than or equal to 1"
+        end
+    end
+
+    local _, err = utils.normalize.log_request(options.log_request)
+    if err then
+        return false, err
+    end
+
+    if options.wait_max ~= nil then
+        local err
+        options.wait_max, err = utils.normalize.wait_max(options.wait_max)
+        if err ~= nil then
+            return false, err
+        end
+    end
+
+    return true
+end
+
 function utils.validate_tubes(tubes, on_storage)
     for tube_name, tube_opts in pairs(tubes) do
         if tube_opts.driver ~= nil then
@@ -88,6 +115,10 @@ function utils.validate_tubes(tubes, on_storage)
                     return nil, msg:format(tube_opts.driver, tube_name)
                 end
             end
+        end
+        local ok, err = utils.validate_options(tube_opts)
+        if not ok then
+            return nil, err
         end
     end
 
@@ -112,6 +143,17 @@ function utils.validate_cfg(cfg)
     end
 
     return true
+end
+
+function utils.get_tarantool_version()
+    local version_parts = rawget(_G, '_TARANTOOL'):split('-', 3)
+
+    local major_minor_patch_parts = version_parts[1]:split('.', 2)
+    local major = tonumber(major_minor_patch_parts[1])
+    local minor = tonumber(major_minor_patch_parts[2])
+    local patch = tonumber(major_minor_patch_parts[3])
+
+    return major, minor, patch
 end
 
 return utils

@@ -5,8 +5,8 @@ source  = {
     branch = 'master';
 }
 dependencies = {
-    'lua >= 5.1';
-    'cartridge >= 2.0.0, < 3.0.0',
+    'lua >= 5.1',
+    'vshard >= 0.1.26-1',
 }
 
 external_dependencies = {
@@ -20,6 +20,8 @@ build = {
 	build_target = 'all',
     install = {
         lua = {
+            ["roles.sharded-queue-router"] = "roles/sharded-queue-router.lua",
+            ["roles.sharded-queue-storage"] = "roles/sharded-queue-storage.lua",
             ['sharded_queue.api'] = 'sharded_queue/api.lua',
             ['sharded_queue.storage'] = 'sharded_queue/storage.lua',
             ['sharded_queue.drivers.fifo'] = 'sharded_queue/drivers/fifo.lua',
@@ -27,6 +29,7 @@ build = {
             ['sharded_queue.time'] = 'sharded_queue/time.lua',
             ['sharded_queue.utils'] = 'sharded_queue/utils.lua',
             ['sharded_queue.metrics'] = 'sharded_queue/metrics.lua',
+            ['sharded_queue.roles'] = 'sharded_queue/roles.lua',
             ['sharded_queue.stash'] = 'sharded_queue/stash.lua',
             ['sharded_queue.state'] = 'sharded_queue/state.lua',
             ['sharded_queue.stats.storage'] = 'sharded_queue/stats/storage.lua',
@@ -39,6 +42,7 @@ build = {
             ['sharded_queue.storage.methods'] = 'sharded_queue/storage/methods.lua',
             ['sharded_queue.storage.metrics'] = 'sharded_queue/storage/metrics.lua',
             ['sharded_queue.storage.tubes'] = 'sharded_queue/storage/tubes.lua',
+            ['sharded_queue.storage.vshard_utils'] = 'sharded_queue/storage/vshard_utils.lua',
             ['sharded_queue.version'] = 'sharded_queue/version.lua',
         },
     },
