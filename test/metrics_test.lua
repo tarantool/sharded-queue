@@ -120,8 +120,8 @@ local function assert_metric(metrics, name, label, values, filters)
     end
 end
 
-g.test_metrics_api = function()
-    local tube_name = 'metrics_api_test'
+g.test_metrics_router = function()
+    local tube_name = 'metrics_router_test'
     helper.create_tube(tube_name)
     g.queue_conn = helper.get_evaler('queue-router')
 
@@ -137,10 +137,10 @@ g.test_metrics_api = function()
 
     -- Check metrics on the router.
     local metrics = get_router_metrics(tube_name)
-    assert_metric(metrics, "tnt_sharded_queue_api_role_stats_count", "method", {
+    assert_metric(metrics, "tnt_sharded_queue_router_role_stats_count", "method", {
         put = task_count,
     }, {status = "ok"})
-    assert_metric(metrics, "tnt_sharded_queue_api_statistics_calls_total", "state", {
+    assert_metric(metrics, "tnt_sharded_queue_router_statistics_calls_total", "state", {
         done = 0,
         take = 0,
         kick = 0,
@@ -151,7 +151,7 @@ g.test_metrics_api = function()
         ack = 0,
         release = 0,
     })
-    assert_metric(metrics, "tnt_sharded_queue_api_statistics_tasks", "state", {
+    assert_metric(metrics, "tnt_sharded_queue_router_statistics_tasks", "state", {
         ready = 0,
         taken = 0,
         done = 0,
@@ -159,8 +159,8 @@ g.test_metrics_api = function()
         delayed = task_count,
         total = task_count,
     })
-    t.assert_not_equals(get_metric(metrics, "tnt_sharded_queue_api_role_stats"), {})
-    t.assert_not_equals(get_metric(metrics, "tnt_sharded_queue_api_role_stats_sum"), {})
+    t.assert_not_equals(get_metric(metrics, "tnt_sharded_queue_router_role_stats"), {})
+    t.assert_not_equals(get_metric(metrics, "tnt_sharded_queue_router_role_stats_sum"), {})
 
     -- Check metrics on storages.
     metrics = get_storages_metrics(tube_name)
@@ -191,8 +191,8 @@ g.test_metrics_api = function()
     t.assert_not_equals(get_metric(metrics, "tnt_sharded_queue_storage_role_stats_count"), {})
 end
 
-g.test_metrics_api_disabled = function()
-    local tube_name = 'metrics_api_disabled_test'
+g.test_metrics_router_disabled = function()
+    local tube_name = 'metrics_router_disabled_test'
     helper.set_cfg({metrics = false})
     helper.create_tube(tube_name)
 
@@ -210,23 +210,23 @@ g.test_metrics_api_disabled = function()
     t.assert_equals(get_metric(metrics, "tnt_sharded_queue_storage_role_stats_count"), {})
 end
 
-g.test_metrics_api_disable = function()
-    local tube_name = 'metrics_api_disable_test'
+g.test_metrics_router_disable = function()
+    local tube_name = 'metrics_router_disable_test'
     helper.create_tube(tube_name)
 
     g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), {
         1, { delay = 3 , ttl = 3, ttr = 1}
     })
     local metrics = get_router_metrics(tube_name)
-    assert_metric(metrics, "tnt_sharded_queue_api_statistics_calls_total", "state", {
+    assert_metric(metrics, "tnt_sharded_queue_router_statistics_calls_total", "state", {
         put = 1,
     })
-    assert_metric(metrics, "tnt_sharded_queue_api_statistics_tasks", "state", {
+    assert_metric(metrics, "tnt_sharded_queue_router_statistics_tasks", "state", {
         delayed = 1,
     })
-    t.assert_not_equals(get_metric(metrics, "tnt_sharded_queue_api_role_stats"), {})
-    t.assert_not_equals(get_metric(metrics, "tnt_sharded_queue_api_role_stats_sum"), {})
-    t.assert_not_equals(get_metric(metrics, "tnt_sharded_queue_api_role_stats_count"), {})
+    t.assert_not_equals(get_metric(metrics, "tnt_sharded_queue_router_role_stats"), {})
+    t.assert_not_equals(get_metric(metrics, "tnt_sharded_queue_router_role_stats_sum"), {})
+    t.assert_not_equals(get_metric(metrics, "tnt_sharded_queue_router_role_stats_count"), {})
 
     metrics = get_storages_metrics(tube_name)
     assert_metric(metrics, "tnt_sharded_queue_storage_statistics_calls_total", "state", {

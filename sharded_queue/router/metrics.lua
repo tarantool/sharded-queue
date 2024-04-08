@@ -13,7 +13,7 @@ local function enable(queue)
     local get_statistic = function(tube)
         return queue.statistics(tube)
     end
-    metrics_stats:enable('api', queue.map(), get_statistic)
+    metrics_stats:enable('router', queue.map(), get_statistic)
 end
 
 local function observe(latency, tube, method, ok)

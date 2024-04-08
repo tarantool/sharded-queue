@@ -197,7 +197,7 @@ installed and the feature is not disabled by the configuration.
 
 ### Router (`roles.sharded-queue-router` or `sharded_queue.api` for the Cartridge)
 
-* Metric `tnt_sharded_queue_api_statistics_calls_total` is a counter with
+* Metric `tnt_sharded_queue_router_statistics_calls_total` is a counter with
   the number of requests broken down by [the type of request][queue-statistics].
   The metric has labels in the following format:
 
@@ -207,7 +207,7 @@ installed and the feature is not disabled by the configuration.
   `delete`, `touch`, `ack`, `release`. The metric on the `sharded_queue.api`
   role accumulates values from all buckets.
 
-* Metric `tnt_sharded_queue_api_statistics_tasks` is a gauge with
+* Metric `tnt_sharded_queue_router_statistics_tasks` is a gauge with
   the number of tasks in a queue broken down by [a task state][queue-statistics].
   The metric has labels in the following format:
 
@@ -217,7 +217,7 @@ installed and the feature is not disabled by the configuration.
   `delayed`, `total`. The metric on the `sharded_queue.api` role accumulates
   values from all buckets.
 
-* Metric `tnt_sharded_queue_api_role_stats` is a [summary][metrics-summary]
+* Metric `tnt_sharded_queue_router_role_stats` is a [summary][metrics-summary]
   with quantiles of `sharded_queue.api` role API calls. The metric includes a
   counter of API calls and errors and has labels in the following format:
 

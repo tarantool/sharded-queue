@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Metric `tnt_sharded_queue_api_role_stats` is a [summary][metrics-summary]
+- Metric `tnt_sharded_queue_router_role_stats` is a [summary][metrics-summary]
   with quantiles of `sharded_queue.api` role API calls (#71).
   The metric includes a counter of API calls and errors.
   The metric contains labels in the following format:
@@ -39,11 +39,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Metric `sharded_queue_calls` renamed to
-  `tnt_sharded_queue_api_statistics_calls_total` (#71). The metric now has
+  `tnt_sharded_queue_router_statistics_calls_total` (#71). The metric now has
   labels in the format `{name = "tube_name", state = "call_type"}` instead of
   `{name = "tube_name", status = "call_type"}`.
 - Metric `sharded_queue_tasks` renamed to
-  `tnt_sharded_queue_api_statistics_tasks` (#71). The metric now has labels
+  `tnt_sharded_queue_router_statistics_tasks` (#71). The metric now has labels
   in the format `{name = "tube_name", state = "task_state"}` instead of
   `{name = "tube_name", status = "task_state"}`.
 - The dependency `cartridge` is removed from the `rockspec` since the module
