@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## 1.0.0 - 2024-04-17
+
+The release introduces roles for Tarantool 3 and improves the module metrics.
+
+### Added
+
 - Metric `tnt_sharded_queue_router_role_stats` is a [summary][metrics-summary]
   with quantiles of `sharded_queue.api` role API calls (#71).
   The metric includes a counter of API calls and errors.
