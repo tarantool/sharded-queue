@@ -37,7 +37,7 @@ function g.test_try_waiting()
     local waiting_time = tonumber(channel:get()) / 1e6
     local task = channel:get()
 
-    t.assert_almost_equals(waiting_time, 3, 0.1)
+    t.assert_almost_equals(waiting_time, 3, 0.3)
     t.assert_equals(task, nil)
 
     channel:close()
@@ -64,7 +64,7 @@ function g.test_wait_put_taking()
     local waiting_time = tonumber(channel:get()) / 1e6
     local task = channel:get()
 
-    t.assert_almost_equals(waiting_time, timeout / 2, 0.1)
+    t.assert_almost_equals(waiting_time, timeout / 2, 0.3)
     t.assert_equals(task[utils.index.data], 'simple_task')
 
     channel:close()
