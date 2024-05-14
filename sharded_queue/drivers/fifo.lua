@@ -8,6 +8,15 @@ local function update_stat(tube_name, name)
     stats.update(tube_name, name, '+', 1)
 end
 
+local index = {
+    task_id         = 1,
+    bucket_id       = 2,
+    status          = 3,
+    data            = 4,
+    index           = 5,
+    release_count   = 6,
+}
+
 local method = {}
 
 local function tube_create(args)
@@ -22,7 +31,8 @@ local function tube_create(args)
         { name = 'bucket_id', type = 'unsigned' },
         { name = 'status', type = 'string' },
         { name = 'data', type = '*' },
-        { name = 'index', type = 'unsigned' }
+        { name = 'index', type = 'unsigned' },
+        { name = 'release_count', type = 'unsigned' }
     }
 
     local space = box.schema.create_space(args.name, space_options)
@@ -91,7 +101,8 @@ function method.put(args)
             args.bucket_id,
             state.READY,
             args.data,
-            idx
+            idx,
+            0
         }
     end)
 
@@ -103,10 +114,10 @@ end
 function method.take(args)
     local task = utils.atomic(function()
         local task = get_space(args).index.status:min { state.READY }
-        if task == nil or task[3] ~= state.READY then
+        if task == nil or task[index.status] ~= state.READY then
             return
         end
-        return get_space(args):update(task.task_id, { { '=', 3, state.TAKEN } })
+        return get_space(args):update(task.task_id, { { '=', index.status, state.TAKEN } })
     end)
     if task == nil then return end
 
@@ -147,14 +158,38 @@ end
 
 -- release task
 function method.release(args)
-    local task = get_space(args):update(args.task_id, { { '=', 3, state.READY } })
+    local release_limit = args.options.release_limit or -1
+    local deleted = false
+
+    local task = utils.atomic(function()
+        local task = get_space(args):update(args.task_id, {
+            { '=', index.status, state.READY },
+            { '+', index.release_count, 1 },
+        })
+        if task ~= nil and release_limit > 0 then
+            if task.release_count >= release_limit then
+                get_space(args):delete(args.task_id)
+                deleted = true
+            end
+        end
+        return task
+    end)
+
     update_stat(args.tube_name, 'release')
+
+    if deleted then
+        task = task:tomap()
+        task.status = state.DONE
+        update_stat(args.tube_name, 'delete')
+        update_stat(args.tube_name, 'done')
+    end
+
     return normalize_task(task)
 end
 
 -- bury task
 function method.bury(args)
-    local task = get_space(args):update(args.task_id, { { '=', 3, state.BURIED } })
+    local task = get_space(args):update(args.task_id, { { '=', index.status, state.BURIED } })
     update_stat(args.tube_name, 'bury')
     return normalize_task(task)
 end
@@ -166,11 +201,11 @@ function method.kick(args)
         if task == nil then
             return i - 1
         end
-        if task[2] ~= state.BURIED then
+        if task[index.status] ~= state.BURIED then
             return i - 1
         end
 
-        task = get_space(args):update(task[1], { { '=', 3, state.READY } })
+        task = get_space(args):update(task[index.task_id], { { '=', index.status, state.READY } })
         update_stat(args.tube_name, 'kick')
     end
     return args.count
