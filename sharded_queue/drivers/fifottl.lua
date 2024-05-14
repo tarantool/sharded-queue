@@ -7,16 +7,17 @@ local vshard_utils = require('sharded_queue.storage.vshard_utils')
 local log = require('log') -- luacheck: ignore
 
 local index = {
-    task_id    = 1,
-    bucket_id  = 2,
-    status     = 3,
-    created    = 4,
-    priority   = 5,
-    ttl        = 6,
-    ttr        = 7,
-    next_event = 8,
-    data       = 9,
-    index      = 10
+    task_id         = 1,
+    bucket_id       = 2,
+    status          = 3,
+    created         = 4,
+    priority        = 5,
+    ttl             = 6,
+    ttr             = 7,
+    next_event      = 8,
+    data            = 9,
+    index           = 10,
+    release_count   = 11,
 }
 
 local function update_stat(tube_name, name)
@@ -50,7 +51,7 @@ local function wc_wait(tube_name, time)
 end
 
 -- FIBERS METHODS --
-local function fiber_iteration(tube_name, processed)
+local function fiber_iteration(tube_name, processed, release_limit)
     local cur  = time.cur()
     local estimated = time.MAX_TIMEOUT
 
@@ -93,10 +94,17 @@ local function fiber_iteration(tube_name, processed)
     task = box.space[tube_name].index.watch:min { state.TAKEN }
     if task and task[index.status] == state.TAKEN then
         if cur >= task[index.next_event] then
-            box.space[tube_name]:update(task[index.task_id], {
-                { '=', index.status,     state.READY },
-                { '=', index.next_event, task[index.created] + task[index.ttl] }
-            })
+            if release_limit > 0 and task.release_count + 1 >= release_limit then
+                box.space[tube_name]:delete(task[index.task_id])
+                update_stat(tube_name, 'delete')
+                update_stat(tube_name, 'done')
+            else
+                box.space[tube_name]:update(task[index.task_id], {
+                    { '=', index.status,     state.READY },
+                    { '=', index.next_event, task[index.created] + task[index.ttl] },
+                    { '+', index.release_count, 1}
+                })
+            end
             estimated = 0
             processed = processed + 1
         else
@@ -114,7 +122,7 @@ local function fiber_iteration(tube_name, processed)
     return processed
 end
 
-local function fiber_common(tube_name)
+local function fiber_common(tube_name, release_limit)
     fiber.name(tube_name)
     wait_cond_map[tube_name] = fiber.cond()
 
@@ -122,7 +130,7 @@ local function fiber_common(tube_name)
 
     while true do
         if not box.cfg.read_only then
-            local ok, ret = pcall(fiber_iteration, tube_name, processed)
+            local ok, ret = pcall(fiber_iteration, tube_name, processed, release_limit)
             if not ok and not (ret.code == box.error.READONLY) then
                 return 1
             elseif ok then
@@ -137,6 +145,7 @@ end
 -- QUEUE METHODs --
 
 local function tube_create(args)
+    local release_limit = args.options.release_limit or -1
     local user = vshard_utils.get_this_replica_user() or 'guest'
     local space_options = {}
     local if_not_exists = args.options.if_not_exists or true
@@ -144,16 +153,17 @@ local function tube_create(args)
     space_options.temporary = args.options.temporary or false
     space_options.engine = args.options.engine or 'memtx'
     space_options.format = {
-        { 'task_id',    'unsigned' },
-        { 'bucket_id',  'unsigned' },
-        { 'status',     'string'   },
-        { 'created',    'unsigned' },
-        { 'priority',   'unsigned' },
-        { 'ttl',        'unsigned' },
-        { 'ttr',        'unsigned' },
-        { 'next_event', 'unsigned' },
-        { 'data',       '*'        },
-        { 'index',      'unsigned' }
+        { 'task_id',        'unsigned' },
+        { 'bucket_id',      'unsigned' },
+        { 'status',         'string'   },
+        { 'created',        'unsigned' },
+        { 'priority',       'unsigned' },
+        { 'ttl',            'unsigned' },
+        { 'ttr',            'unsigned' },
+        { 'next_event',     'unsigned' },
+        { 'data',           '*'        },
+        { 'index',          'unsigned' },
+        { 'release_count',  'unsigned'}
     }
 
     local space = box.schema.space.create(args.name, space_options)
@@ -207,7 +217,7 @@ local function tube_create(args)
         {if_not_exists = true})
 
     -- run fiber for tracking event
-    fiber.create(fiber_common, args.name)
+    fiber.create(fiber_common, args.name, release_limit)
 end
 
 local function tube_drop(tube_name)
@@ -266,7 +276,8 @@ function method.put(args)
             time.nano(ttr),         -- ttr
             next_event,             -- next_event
             args.data,              -- data
-            idx                     -- index
+            idx,                    -- index
+            0                       -- release_count
         }
     end)
 
@@ -397,23 +408,51 @@ function method.peek(args)
 end
 
 function method.release(args)
+    local release_limit = args.options.release_limit or -1
+    local deleted = false
+    local updated = false
+
     local task = utils.atomic(function()
         local task = box.space[args.tube_name]:get(args.task_id)
-        if task ~= nil then
+        if task == nil then
+            return nil
+        end
+
+        if release_limit > 0 and task.release_count + 1 >= release_limit then
+            box.space[args.tube_name]:delete(args.task_id)
+            deleted = true
+        else
             task = box.space[args.tube_name]:update(args.task_id, {
                 {'=', index.status, state.READY},
                 {'=', index.next_event, task[index.created] + task[index.ttl]},
+                {'+', index.release_count, 1},
             })
+            updated = true
         end
         return task
     end)
 
-    if args.extra and args.extra.log_request then
-        log_operation("release", task)
+    if updated or deleted then
+        if args.extra and args.extra.log_request then
+            log_operation("release", task)
+        end
+        update_stat(args.tube_name, 'release')
     end
 
-    update_stat(args.tube_name, 'release')
+    if deleted then
+        task = task:tomap()
+        task.status = state.DONE
+
+        if args.extra and args.extra.log_request then
+            log_operation("delete", task)
+        end
+
+        update_stat(args.tube_name, 'delete')
+        update_stat(args.tube_name, 'done')
+    end
+
     wc_signal(args.tube_name)
+
     return normalize_task(task)
 end
 

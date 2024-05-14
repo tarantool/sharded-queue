@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Method truncate() to clean tubes (#78).
+- `release_limit` configuration option: a taken task is removed from the queue
+  if the task has been released (by `release` or `ttr`) `release_limit` times (#8).
 
 ### Changed
 

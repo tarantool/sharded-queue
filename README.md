@@ -293,5 +293,18 @@ installed and the feature is not disabled by the configuration.
 * You can not create or drop tubes by API calls with Tarantool 3. You need
   to update the role configuration instead.
 
+* The `sharded-queue` drivers has additional configuration option `release_limit`. The option is an integer number:
+
+    * `release_limit` == nil or `release_limit` <= 0 - a driver works as before.
+    * `release_limit` > 0 - a taken task is removed from the queue if the task has been released (by `release` or `ttr`) `release_limit` times.
+
+    Example:
+
+    ```lua
+    conn:call('queue.create_tube', { mytube, {
+        release_limit = 2, -- Delete task after 2nd release.
+    }})
+    ```
+
 [metrics-summary]: https://www.tarantool.io/en/doc/latest/book/monitoring/api_reference/#summary
 [queue-statistics]: https://github.com/tarantool/queue?tab=readme-ov-file#getting-statistics

@@ -98,6 +98,12 @@ function utils.validate_options(options)
         end
     end
 
+    if options.release_limit then
+        if type(options.release_limit) ~= 'number' then
+            return false, "release_limit must be number"
+        end
+    end
+
     return true
 end
 
