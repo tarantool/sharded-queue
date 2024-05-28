@@ -306,5 +306,73 @@ installed and the feature is not disabled by the configuration.
     }})
     ```
 
+* The `sharded-queue` drivers has additional configuration option `release_limit_policy` to control the behavior
+  when a task reached the `release_limit`:
+
+  * `release_limit_policy` = `nil` or `DELETE` - the task is deleted.
+  * `release_limit_policy` = `DLQ` - the task is moved to the dead letter queue and deleted from main.
+  Dead letter queue is a copy of the main queue with a name suffix `_dlq`.
+
+  Example:
+
+  ```lua
+  conn:call('queue.create_tube', { mytube, {
+      release_limit = 2,
+      release_limit_policy = 'DLQ', -- A task will be moved to DLQ after 2nd release.
+  }})
+  ```
+
+  ```yaml
+  groups:
+    storages:
+      roles: ['roles.sharded-queue-storage']
+      roles_cfg:
+        roles.sharded-queue-storage:
+          cfg:
+            metrics: true
+          tubes:
+            mytube:
+              driver: sharded_queue.drivers.fifottl
+              release_limit: 2
+              release_limit_policy: 'DLQ'
+  ```
+
+  Usage example:
+
+  ```lua
+  tarantool@user:~/sharded_queue$ tarantool
+  Tarantool 1.10.3-6-gfbf53b9
+  type 'help' for interactive help
+  tarantool> netbox = require('net.box')
+  ---
+  ...
+  tarantool> queue_conn = netbox.connect('localhost:3301', {user = 'admin',password = 'secret-cluster-cookie'})
+  ---
+  ...
+  tarantool> queue_conn:call('queue.create_tube', { 'test_tube', {
+      release_limit = 1,
+      release_limit_policy = 'DLQ', -- A task will be moved to DLQ after first release.
+  }})
+  ---
+  - {'wait_factor': 2, 'release_limit_policy': 'DLQ', 'log_request': false, 'tube_name': 'test_tube'}
+  ...
+  tarantool> queue_conn:call('queue.tube.test_tube:put', { 'task_1' })
+  ---
+  - [3653, 'r', 'task_1']
+  ...
+  tarantool> queue_conn:call('queue.tube.test_tube:take')
+  ---
+  - [3653, 't', 'task_1']
+  ...
+  tarantool> queue_conn:call('queue.tube.test_tube:release', { 3653 }) -- task was erased from 'test_tube'.
+  ---
+  - [3653, '-', 'task_1']
+  ...
+  tarantool> queue_conn:call('queue.tube.test_tube_dlq:take') -- task is now in 'DLQ' tube.
+  ---
+  - [3653, 't', 'task_1']
+  ...
+  ```
+
 [metrics-summary]: https://www.tarantool.io/en/doc/latest/book/monitoring/api_reference/#summary
 [queue-statistics]: https://github.com/tarantool/queue?tab=readme-ov-file#getting-statistics

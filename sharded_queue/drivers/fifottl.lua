@@ -4,6 +4,7 @@ local utils = require('sharded_queue.utils')
 local stats = require('sharded_queue.stats.storage')
 local time  = require('sharded_queue.time')
 local vshard_utils = require('sharded_queue.storage.vshard_utils')
+local consts = require('sharded_queue.consts')
 local log = require('log') -- luacheck: ignore
 
 local index = {
@@ -50,10 +51,65 @@ local function wc_wait(tube_name, time)
     end
 end
 
+local function get_index(tube_name, bucket_id)
+    local task = box.space[tube_name].index.idx:max { bucket_id }
+    if not task or task[index.bucket_id] ~= bucket_id then
+        return 1
+    else
+        return task[index.index] + 1
+    end
+end
+
+local function put_in_dlq(options, task, tube_name, extra)
+    -- setup dead letter queue args
+    local dlq_args = {}
+    dlq_args.tube_name = tube_name .. consts.DLQ_SUFFIX
+    dlq_args.data = task.data
+    dlq_args.bucket_id = task.bucket_id
+    dlq_args.task_id = task.task_id
+    dlq_args.options = table.deepcopy(options or {})
+    dlq_args.options.release_limit = -1
+    dlq_args.options.release_limit_policy = consts.RELEASE_LIMIT_POLICY.DELETE
+    dlq_args.extra = table.deepcopy(extra or {})
+
+    -- setup params --
+
+    local ttl = dlq_args.options.ttl or time.MAX_TIMEOUT
+    local ttr = dlq_args.options.ttr or ttl
+    local priority = dlq_args.options.priority or 0
+    local idx = get_index(dlq_args.tube_name, dlq_args.bucket_id)
+    local next_event = time.event(ttl)
+    local status = state.READY
+
+    local task = box.space[dlq_args.tube_name]:insert {
+        dlq_args.task_id,       -- task_id
+        dlq_args.bucket_id,     -- bucket_id
+        status,                 -- state
+        time.cur(),             -- created
+        priority,               -- priority
+        time.nano(ttl),         -- ttl
+        time.nano(ttr),         -- ttr
+        next_event,             -- next_event
+        dlq_args.data,          -- data
+        idx,                    -- index
+        0                       -- release_count
+    }
+
+    if dlq_args.extra and dlq_args.extra.log_request then
+        log_operation("put", task)
+    end
+
+    update_stat(dlq_args.tube_name, 'put')
+    wc_signal(dlq_args.tube_name)
+end
+
 -- FIBERS METHODS --
-local function fiber_iteration(tube_name, processed, release_limit)
+local function fiber_iteration(tube_name, processed, options)
     local cur  = time.cur()
     local estimated = time.MAX_TIMEOUT
+    local release_limit = options.release_limit or -1
+    local release_limit_policy =
+        options.release_limit_policy or consts.RELEASE_LIMIT_POLICY.DELETE
 
     -- delayed tasks
 
@@ -98,6 +154,9 @@ local function fiber_iteration(tube_name, processed, release_limit)
                 box.space[tube_name]:delete(task[index.task_id])
                 update_stat(tube_name, 'delete')
                 update_stat(tube_name, 'done')
+                if release_limit_policy == consts.RELEASE_LIMIT_POLICY.DLQ then
+                    put_in_dlq(options, task, tube_name)
+                end
             else
                 box.space[tube_name]:update(task[index.task_id], {
                     { '=', index.status,     state.READY },
@@ -122,7 +181,7 @@ local function fiber_iteration(tube_name, processed, release_limit)
     return processed
 end
 
-local function fiber_common(tube_name, release_limit)
+local function fiber_common(tube_name, options)
     fiber.name(tube_name)
     wait_cond_map[tube_name] = fiber.cond()
 
@@ -130,7 +189,7 @@ local function fiber_common(tube_name, release_limit)
 
     while true do
         if not box.cfg.read_only then
-            local ok, ret = pcall(fiber_iteration, tube_name, processed, release_limit)
+            local ok, ret = pcall(fiber_iteration, tube_name, processed, options)
             if not ok and not (ret.code == box.error.READONLY) then
                 return 1
             elseif ok then
@@ -145,7 +204,6 @@ end
 -- QUEUE METHODs --
 
 local function tube_create(args)
-    local release_limit = args.options.release_limit or -1
     local user = vshard_utils.get_this_replica_user() or 'guest'
     local space_options = {}
     local if_not_exists = args.options.if_not_exists or true
@@ -217,20 +275,11 @@ local function tube_create(args)
         {if_not_exists = true})
 
     -- run fiber for tracking event
-    fiber.create(fiber_common, args.name, release_limit)
+    fiber.create(fiber_common, args.name, args.options)
 end
 
 local function tube_drop(tube_name)
     box.space[tube_name]:drop()
-end
-
-local function get_index(tube_name, bucket_id)
-    local task = box.space[tube_name].index.idx:max { bucket_id }
-    if not task or task[index.bucket_id] ~= bucket_id then
-        return 1
-    else
-        return task[index.index] + 1
-    end
 end
 
 local function normalize_task(task)
@@ -409,6 +458,8 @@ end
 
 function method.release(args)
     local release_limit = args.options.release_limit or -1
+    local release_limit_policy =
+        args.options.release_limit_policy or consts.RELEASE_LIMIT_POLICY.DELETE
     local deleted = false
     local updated = false
 
@@ -420,6 +471,9 @@ function method.release(args)
 
         if release_limit > 0 and task.release_count + 1 >= release_limit then
             box.space[args.tube_name]:delete(args.task_id)
+            if release_limit_policy == consts.RELEASE_LIMIT_POLICY.DLQ then
+                put_in_dlq(args.options, task, args.tube_name, args.extra)
+            end
             deleted = true
         else
             task = box.space[args.tube_name]:update(args.task_id, {

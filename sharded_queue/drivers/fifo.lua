@@ -3,6 +3,7 @@ local utils = require('sharded_queue.utils')
 local log = require('log') -- luacheck: ignore
 local stats = require('sharded_queue.stats.storage')
 local vshard_utils = require('sharded_queue.storage.vshard_utils')
+local consts = require('sharded_queue.consts')
 
 local function update_stat(tube_name, name)
     stats.update(tube_name, name, '+', 1)
@@ -87,6 +88,28 @@ local function normalize_task(task)
     return { task.task_id, task.status, task.data }
 end
 
+local function put_in_dlq(args, task)
+    -- setup dead letter queue args
+    local dlq_args = {}
+    dlq_args.tube_name = args.tube_name .. consts.DLQ_SUFFIX
+    dlq_args.data = task.data
+    dlq_args.bucket_id = task.bucket_id
+    dlq_args.task_id = task.task_id
+
+    local idx = get_index(dlq_args)
+
+    get_space(dlq_args):insert {
+        dlq_args.task_id,
+        dlq_args.bucket_id,
+        state.READY,
+        dlq_args.data,
+        idx,
+        0
+    }
+
+    update_stat(dlq_args.tube_name, 'put')
+end
+
 -- put task in space
 function method.put(args)
     local task = utils.atomic(function()
@@ -160,6 +183,8 @@ end
 function method.release(args)
     local release_limit = args.options.release_limit or -1
     local deleted = false
+    local release_limit_policy =
+        args.options.release_limit_policy or consts.RELEASE_LIMIT_POLICY.DELETE
 
     local task = utils.atomic(function()
         local task = get_space(args):update(args.task_id, {
@@ -169,6 +194,9 @@ function method.release(args)
         if task ~= nil and release_limit > 0 then
             if task.release_count >= release_limit then
                 get_space(args):delete(args.task_id)
+                if release_limit_policy == consts.RELEASE_LIMIT_POLICY.DLQ then
+                    put_in_dlq(args, task)
+                end
                 deleted = true
             end
         end

@@ -421,6 +421,7 @@ local function new(name, metrics, options)
         wait_max = options.wait_max,
         wait_factor = options.wait_factor or time.DEFAULT_WAIT_FACTOR,
         log_request = utils.normalize.log_request(options.log_request),
+        release_limit_policy = options.release_limit_policy,
     }, new_metrics_metatable(metrics))
 end
 

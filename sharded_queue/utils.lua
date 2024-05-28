@@ -1,6 +1,7 @@
 local fiber = require('fiber')
 
 local metrics = require('sharded_queue.metrics')
+local consts = require('sharded_queue.consts')
 
 local utils = {}
 
@@ -104,6 +105,23 @@ function utils.validate_options(options)
         end
     end
 
+    if options.release_limit_policy then
+        if type(options.release_limit_policy) ~= 'string' then
+            return false, "release_limit_policy must be string"
+        end
+
+        local found = false
+        for _, v in pairs(consts.RELEASE_LIMIT_POLICY) do
+            if options.release_limit_policy == v then
+                found = true
+            end
+         end
+
+         if not found then
+            return false, "unknown release_limit_policy"
+         end
+    end
+
     return true
 end
 
@@ -148,6 +166,18 @@ function utils.validate_cfg(cfg)
         end
     end
 
+    return true
+end
+
+function utils.validate_dlq(tubes)
+    local tubes = tubes or {}
+    for tube_name, tube_opts in pairs(tubes) do
+        if tube_opts.release_limit_policy == consts.RELEASE_LIMIT_POLICY.DLQ
+           and tubes[tube_name .. consts.DLQ_SUFFIX] ~= nil then
+            local msg = 'dead letter queue %s could not be created for tube %s'
+            return nil, msg:format(tube_name .. consts.DLQ_SUFFIX, tube_name)
+        end
+    end
     return true
 end
 

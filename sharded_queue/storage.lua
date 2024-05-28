@@ -16,6 +16,12 @@ local function validate_config(cfg)
     if not ok then
         return ok, err
     end
+
+    ok, err = utils.validate_dlq(cfg_tubes or {})
+    if not ok then
+        return ok, err
+    end
+
     return utils.validate_cfg(cfg_tubes['cfg'])
 end
 

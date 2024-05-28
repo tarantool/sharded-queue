@@ -4,6 +4,7 @@ local config = require('sharded_queue.router.config')
 local metrics = require('sharded_queue.router.metrics')
 local utils = require('sharded_queue.utils')
 local queue = require('sharded_queue.router.queue')
+local consts = require('sharded_queue.consts')
 
 function cfg_call(_, options)
     options = options or {}
@@ -38,6 +39,12 @@ local function validate_config(cfg)
     if not ok then
         return ok, err
     end
+
+    ok, err = utils.validate_dlq(cfg_tubes or {})
+    if not ok then
+        return ok, err
+    end
+
     return utils.validate_cfg(cfg_tubes['cfg'])
 end
 
@@ -51,12 +58,25 @@ local function apply_config(cfg, opts)
             end
         elseif queue.map()[tube_name] == nil then
             queue.add(tube_name, metrics, options)
+            if options.release_limit_policy == consts.RELEASE_LIMIT_POLICY.DLQ then
+                local dlq_options = table.deepcopy(options or {})
+                dlq_options.release_limit_policy = nil
+                dlq_options.release_limit = -1
+                queue.add(tube_name .. consts.DLQ_SUFFIX, metrics, dlq_options)
+            end
         end
     end
 
     -- try drop tubes --
     for tube_name, _ in pairs(queue.map()) do
         if tube_name ~= 'cfg' and cfg_tubes[tube_name] == nil then
+            -- Dead letter queue is not in config,
+            -- so instead we check that main queue is in it.
+            local tube = cfg_tubes[tube_name:sub(1, -(#consts.DLQ_SUFFIX+1))]
+            if tube_name:sub(-#consts.DLQ_SUFFIX) == consts.DLQ_SUFFIX and tube
+               and tube.release_limit_policy == consts.RELEASE_LIMIT_POLICY.DLQ then
+                break
+            end
             queue.remove(tube_name)
         end
     end

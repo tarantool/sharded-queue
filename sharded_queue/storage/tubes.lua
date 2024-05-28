@@ -1,4 +1,5 @@
 local drivers = require('sharded_queue.storage.drivers')
+local consts = require('sharded_queue.consts')
 
 local tubes = {}
 
@@ -9,6 +10,9 @@ local function map_tubes(cfg_tubes)
     for tube_name, tube_opts in pairs(cfg_tubes) do
         if tube_opts.enable == nil or tube_opts.enable == true then
             result[tube_name] = drivers.get(tube_opts.driver)
+            if tube_opts.release_limit_policy == consts.RELEASE_LIMIT_POLICY.DLQ then
+                result[tube_name .. consts.DLQ_SUFFIX] = drivers.get(tube_opts.driver)
+            end
         end
     end
     return result
@@ -42,10 +46,21 @@ local function update(self, cfg_tubes)
     local new = {}
     for tube_name, driver in pairs(self.tubes) do
         if existing_tubes[tube_name] == nil then
-            self.tubes[tube_name].create({
-                name = tube_name,
-                options = cfg_tubes[tube_name]
-            })
+            local tube = cfg_tubes[tube_name:sub(1, -5)]
+            if tube_name:sub(-4) == consts.DLQ_SUFFIX and tube then
+                local dlq_options = table.deepcopy(tube or {})
+                dlq_options.release_limit = -1
+                dlq_options.release_limit_policy = nil
+                self.tubes[tube_name].create({
+                    name = tube_name,
+                    options = dlq_options
+                })
+            else
+                self.tubes[tube_name].create({
+                    name = tube_name,
+                    options = cfg_tubes[tube_name]
+                })
+            end
             table.insert(new, tube_name)
         end
     end

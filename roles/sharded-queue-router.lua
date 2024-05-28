@@ -6,6 +6,7 @@ local metrics = require('sharded_queue.router.metrics')
 local roles = require('sharded_queue.roles')
 local utils = require('sharded_queue.utils')
 local queue = require('sharded_queue.router.queue')
+local consts = require('sharded_queue.consts')
 
 local role_name = roles.get_tarantool_role_name('router')
 local storage_role_name = roles.get_tarantool_role_name('storage')
@@ -52,6 +53,11 @@ local function validate(conf)
     if not ok then
         error(role_name .. ": " .. err)
     end
+
+    ok, err = utils.validate_dlq(tubes)
+    if not ok then
+        error(role_name .. ": " .. err)
+    end
     return true
 end
 
@@ -71,12 +77,28 @@ local function apply(conf)
     for tube_name, options in pairs(conf_tubes) do
         if queue.map()[tube_name] == nil then
             queue.add(tube_name, metrics, options)
+            if options.release_limit_policy == consts.RELEASE_LIMIT_POLICY.DLQ then
+                local dlq_options = table.deepcopy(options or {})
+                dlq_options.release_limit_policy = nil
+                dlq_options.release_limit = -1
+                queue.add(tube_name .. consts.DLQ_SUFFIX, metrics, dlq_options)
+            end
         end
     end
 
     for tube_name, _ in pairs(queue.map()) do
         if conf_tubes[tube_name] == nil then
-            queue.remove(tube_name)
+            -- Dead letter queue is not in config,
+            -- so instead we check that main queue is in it.
+            local remove = true
+            local tube = conf_tubes[tube_name:sub(1, -(#consts.DLQ_SUFFIX+1))]
+            if tube_name:sub(-#consts.DLQ_SUFFIX) == consts.DLQ_SUFFIX and tube
+               and tube.release_limit_policy == consts.RELEASE_LIMIT_POLICY.DLQ then
+                remove = false
+            end
+            if remove then
+                queue.remove(tube_name)
+            end
         end
     end
 

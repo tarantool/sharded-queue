@@ -2,6 +2,7 @@ local is_cartridge_package, cartridge = pcall(require, 'cartridge')
 local vshard = require('vshard')
 local tube = require('sharded_queue.router.tube')
 local utils = require('sharded_queue.utils')
+local consts = require('sharded_queue.consts')
 
 local queue_global = {
     tube = {},
@@ -66,6 +67,7 @@ if is_cartridge_package then
         end
 
         tubes[tube_name] = options
+
         ok, err = cartridge.config_patch_clusterwide({ tubes = tubes })
         if not ok then
             error(err)
