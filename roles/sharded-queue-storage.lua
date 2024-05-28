@@ -27,6 +27,11 @@ local function validate(conf)
     if not ok then
         error(role_name .. ": " .. err)
     end
+
+    ok, err = utils.validate_dlq(conf.tubes or {})
+    if not ok then
+        error(role_name .. ": " .. err)
+    end
     return true
 end
 
