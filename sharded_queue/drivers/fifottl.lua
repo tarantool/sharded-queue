@@ -60,6 +60,40 @@ local function get_index(tube_name, bucket_id)
     end
 end
 
+local function put_in_tube(args, is_dlq, delay, ttl, ttr, priority)
+    local idx = get_index(args.tube_name, args.bucket_id)
+
+    local next_event = time.event(ttl)
+    local status = state.READY
+    if is_dlq == false then
+        args.task_id = utils.pack_task_id(
+            args.bucket_id,
+            args.bucket_count,
+            idx)
+        if delay > 0 then
+            status = state.DELAYED
+            ttl = ttl + delay
+            next_event = time.event(delay)
+        else
+            next_event = time.event(ttl)
+        end
+    end
+
+    return box.space[args.tube_name]:insert {
+        args.task_id,           -- task_id
+        args.bucket_id,         -- bucket_id
+        status,                 -- state
+        time.cur(),             -- created
+        priority,               -- priority
+        time.nano(ttl),         -- ttl
+        time.nano(ttr),         -- ttr
+        next_event,             -- next_event
+        args.data,              -- data
+        idx,                    -- index
+        0                       -- release_count
+    }
+end
+
 local function put_in_dlq(options, task, tube_name, extra)
     -- setup dead letter queue args
     local dlq_args = {}
@@ -77,23 +111,8 @@ local function put_in_dlq(options, task, tube_name, extra)
     local ttl = dlq_args.options.ttl or time.MAX_TIMEOUT
     local ttr = dlq_args.options.ttr or ttl
     local priority = dlq_args.options.priority or 0
-    local idx = get_index(dlq_args.tube_name, dlq_args.bucket_id)
-    local next_event = time.event(ttl)
-    local status = state.READY
 
-    local task = box.space[dlq_args.tube_name]:insert {
-        dlq_args.task_id,       -- task_id
-        dlq_args.bucket_id,     -- bucket_id
-        status,                 -- state
-        time.cur(),             -- created
-        priority,               -- priority
-        time.nano(ttl),         -- ttl
-        time.nano(ttr),         -- ttr
-        next_event,             -- next_event
-        dlq_args.data,          -- data
-        idx,                    -- index
-        0                       -- release_count
-    }
+    put_in_tube(dlq_args, true, nil, ttl, ttr, priority)
 
     if dlq_args.extra and dlq_args.extra.log_request then
         log_operation("put", task)
@@ -298,36 +317,7 @@ function method.put(args)
     local priority = args.priority or args.options.priority or 0
 
     local task = utils.atomic(function()
-        local idx = get_index(args.tube_name, args.bucket_id)
-
-        local next_event
-        local task_id = utils.pack_task_id(
-            args.bucket_id,
-            args.bucket_count,
-            idx)
-
-        local status = state.READY
-        if delay > 0 then
-            status = state.DELAYED
-            ttl = ttl + delay
-            next_event = time.event(delay)
-        else
-            next_event = time.event(ttl)
-        end
-
-        return box.space[args.tube_name]:insert {
-            task_id,                -- task_id
-            args.bucket_id,         -- bucket_id
-            status,                 -- state
-            time.cur(),             -- created
-            priority,               -- priority
-            time.nano(ttl),         -- ttl
-            time.nano(ttr),         -- ttr
-            next_event,             -- next_event
-            args.data,              -- data
-            idx,                    -- index
-            0                       -- release_count
-        }
+        return put_in_tube(args, false, delay, ttl, ttr, priority)
     end)
 
     if args.extra and args.extra.log_request then
