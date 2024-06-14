@@ -88,6 +88,26 @@ local function normalize_task(task)
     return { task.task_id, task.status, task.data }
 end
 
+local function put_in_tube(args, is_dlq)
+    local idx = get_index(args)
+
+    if is_dlq == false then
+        args.task_id = utils.pack_task_id(
+            args.bucket_id,
+            args.bucket_count,
+            idx)
+    end
+
+    return get_space(args):insert {
+        args.task_id,
+        args.bucket_id,
+        state.READY,
+        args.data,
+        idx,
+        0
+    }
+end
+
 local function put_in_dlq(args, task)
     -- setup dead letter queue args
     local dlq_args = {}
@@ -96,16 +116,7 @@ local function put_in_dlq(args, task)
     dlq_args.bucket_id = task.bucket_id
     dlq_args.task_id = task.task_id
 
-    local idx = get_index(dlq_args)
-
-    get_space(dlq_args):insert {
-        dlq_args.task_id,
-        dlq_args.bucket_id,
-        state.READY,
-        dlq_args.data,
-        idx,
-        0
-    }
+    put_in_tube(dlq_args, true)
 
     update_stat(dlq_args.tube_name, 'put')
 end
@@ -113,20 +124,7 @@ end
 -- put task in space
 function method.put(args)
     local task = utils.atomic(function()
-        local idx = get_index(args)
-        local task_id = utils.pack_task_id(
-            args.bucket_id,
-            args.bucket_count,
-            idx)
-
-        return get_space(args):insert {
-            task_id,
-            args.bucket_id,
-            state.READY,
-            args.data,
-            idx,
-            0
-        }
+        return put_in_tube(args, false)
     end)
 
     update_stat(args.tube_name, 'put')
