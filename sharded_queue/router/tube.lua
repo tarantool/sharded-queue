@@ -350,6 +350,28 @@ function drop(self)
     cartridge.config_patch_clusterwide({ tubes = tubes })
 end
 
+function truncate(self, options)
+    options = table.deepcopy(options or {})
+    options.tube_name = self.tube_name
+
+    options.extra = {
+        log_request = utils.normalize.log_request(options.log_request) or self.log_request,
+    }
+
+    local _, err, alias = vshard.router.map_callrw('tube_truncate', {
+        options
+    })
+    -- Re-raise storage errors.
+    if err then
+        if alias then
+            error("Error occurred on replicaset \"" .. alias .. "\": " .. err.message)
+        else
+            error("Error occurred: " .. err.message)
+        end
+        return
+    end
+end
+
 local methods = {
     put = put,
     take = take,
@@ -360,6 +382,7 @@ local methods = {
     bury = bury,
     kick = kick,
     peek = peek,
+    truncate = truncate,
 }
 
 -- The Tarantool 3.0 does not support to update dinamically a configuration, so

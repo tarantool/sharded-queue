@@ -14,6 +14,7 @@ local methods = {
     'release',
     'bury',
     'kick',
+    'truncate',
 }
 
 local function init(metrics, tubes)

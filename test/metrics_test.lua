@@ -150,6 +150,7 @@ g.test_metrics_router = function()
         touch = 0,
         ack = 0,
         release = 0,
+        truncate = 0,
     })
     assert_metric(metrics, "tnt_sharded_queue_router_statistics_tasks", "state", {
         ready = 0,
@@ -177,6 +178,7 @@ g.test_metrics_router = function()
         touch = 0,
         ack = 0,
         release = 0,
+        truncate = 0,
     })
     assert_metric(metrics, "tnt_sharded_queue_storage_statistics_tasks", "state", {
         ready = 0,
@@ -268,6 +270,7 @@ g.test_metrics_storage = function()
         'release',
         'bury',
         'kick',
+        'truncate',
     }
 
     -- Some of them will fail, some of them not - it does not metter. We just
@@ -301,6 +304,7 @@ g.test_metrics_storage = function()
         touch = 0,
         ack = 0,
         release = 0,
+        truncate = 1,
     })
     assert_metric(metrics, "tnt_sharded_queue_storage_statistics_tasks", "state", {
         ready = 0,
