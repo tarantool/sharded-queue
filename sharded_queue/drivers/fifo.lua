@@ -181,6 +181,11 @@ function method.peek(args)
     return normalize_task(get_space(args):get { args.task_id })
 end
 
+function method.truncate(args)
+    update_stat(args.tube_name, "truncate")
+    return get_space(args):truncate()
+end
+
 return {
     create = tube_create,
     drop = tube_drop,

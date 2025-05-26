@@ -250,3 +250,47 @@ function g.test_bury_kick()
     t.assert_equals(cur_stat.calls.kick, bury_task_count)
     t.assert_equals(cur_stat.tasks.ready, task_count)
 end
+
+function g.test_truncate()
+    local tube_name = 'truncate_test'
+    helper.create_tube(tube_name)
+
+    -- task data for putting
+    local task_count = 20
+    local tasks_data = {}
+
+    for i = 1, task_count do
+        table.insert(tasks_data, {
+            name = 'task_' .. i,
+            raw = '*'
+        })
+    end
+
+    local task_ids = {}
+
+    -- returned tasks
+    for _, data in pairs(tasks_data) do
+        local task = g.queue_conn:call(utils.shape_cmd(tube_name, 'put'), { data })
+        local peek_task = g.queue_conn:call(utils.shape_cmd(tube_name, 'peek'), {
+            task[utils.index.task_id]
+        })
+        t.assert_equals(peek_task[utils.index.status], utils.state.READY)
+        table.insert(task_ids, task[utils.index.task_id])
+    end
+
+    -- truncate the tube
+    g.queue_conn:call(utils.shape_cmd(tube_name, 'truncate'))
+
+    -- check that created tasks don't exist
+    for _, taskId in pairs(task_ids) do
+        local peek_task = g.queue_conn:call(utils.shape_cmd(tube_name, 'peek'), {
+            taskId
+        })
+        t.assert_equals(peek_task, nil)
+    end
+
+	 -- check stats
+    local stat = g.queue_conn:call('queue.statistics', { tube_name })
+    t.assert_equals(stat.calls.put, task_count)
+    t.assert_equals(stat.calls.truncate, 2)
+end

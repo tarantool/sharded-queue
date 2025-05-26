@@ -15,6 +15,7 @@ local actions = {
     touch = 8,
     ack = 9,
     release = 10,
+    truncate = 11,
 }
 
 function statistics.init()
@@ -32,6 +33,7 @@ function statistics.init()
         { 'touch', 'unsigned' },
         { 'ack', 'unsigned' },
         { 'release', 'unsigned' },
+        { 'truncate', 'unsigned' },
     })
 
     space_stat:create_index('primary', {
@@ -65,6 +67,7 @@ function statistics.reset(tube_name)
         touch = 0,
         ack = 0,
         release = 0,
+        truncate = 0,
     })
     box.space._queue_statistics:replace(default_stat)
 end

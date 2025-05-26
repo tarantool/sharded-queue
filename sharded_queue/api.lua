@@ -89,6 +89,7 @@ return {
     kick = queue_action_wrapper('kick'),
     peek = queue_action_wrapper('peek'),
     drop = queue_action_wrapper('drop'),
+    truncate = queue_action_wrapper('truncate'),
 
     cfg = setmetatable({}, {
         __index = config,

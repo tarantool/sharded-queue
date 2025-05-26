@@ -456,6 +456,11 @@ function method.kick(args)
     return args.count
 end
 
+function method.truncate(args)
+    update_stat(args.tube_name, "truncate")
+    return box.space[args.tube_name]:truncate()
+end
+
 return {
     create = tube_create,
     drop   = tube_drop,
