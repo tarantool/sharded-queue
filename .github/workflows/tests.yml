@@ -18,9 +18,10 @@ jobs:
       fail-fast: false
       matrix:
         tarantool:
-          - '2.8'
-          - '2.10'
-        cartridge: [true]
+          - '3.2'
+          - '3.4'
+          - 'master'
+        cartridge: [false]
         coveralls: [false]
         metrics: [false]
         include:
@@ -28,19 +29,15 @@ jobs:
             cartridge: true
             coveralls: true
             metrics: true
-          - tarantool: 'master'
-            cartridge: false
-            coveralls: false
-            metrics: false
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Clone the module
         uses: actions/checkout@v3
 
       - name: Setup tt
         run: |
-          curl -L https://tarantool.io/release/2/installer.sh | sudo bash
+          curl -L https://tarantool.io/release/3/installer.sh | sudo bash
           sudo apt install -y tt
 
       - name: Install tarantool ${{ matrix.tarantool }}
