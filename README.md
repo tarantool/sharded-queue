@@ -204,7 +204,7 @@ installed and the feature is not disabled by the configuration.
   `{name = "tube_name", state = "request_type"}`
 
   A list of possible request types: `done`, `take`, `kick`, `bury`, `put`,
-  `delete`, `touch`, `ack`, `release`. The metric on the `sharded_queue.api`
+  `delete`, `touch`, `ack`, `release`, `truncate`. The metric on the `sharded_queue.api`
   role accumulates values from all buckets.
 
 * Metric `tnt_sharded_queue_router_statistics_tasks` is a gauge with
@@ -224,7 +224,7 @@ installed and the feature is not disabled by the configuration.
   `{name = "tube_name", method = "api_call_method", status = "ok" or "error"}`
 
   A list of possible call methods: `put`, `take`, `delete`, `release`, `touch`,
-  `ack`, `bury`, `kick`, `peek`, `drop`.
+  `ack`, `bury`, `kick`, `peek`, `drop`, `truncate`.
 
 ### Storage (`roles.sharded-queue-storage` or `sharded_queue.storage` for the Cartridge)
 
@@ -235,7 +235,7 @@ installed and the feature is not disabled by the configuration.
   `{name = "tube_name", state = "request_type"}`
 
   A list of possible request types: `done`, `take`, `kick`, `bury`, `put`,
-  `delete`, `touch`, `ack`, `release`. The metric on the `sharded_queue.storage`
+  `delete`, `touch`, `ack`, `release`, `truncate`. The metric on the `sharded_queue.storage`
   role shows actual values on the instance.
 
 * Metric `tnt_sharded_queue_storage_statistics_tasks` is a gauge with
@@ -255,7 +255,7 @@ installed and the feature is not disabled by the configuration.
   `{name = "tube_name", method = "api_call_method", status = "ok" or "error"}`
 
   A list of possible call methods: `statistic`, `put`, `take`, `delete`,
-  `release`, `touch`, `ack`, `bury`, `kick`, `peek`, `drop`.
+  `release`, `touch`, `ack`, `bury`, `kick`, `peek`, `drop`, `truncate`.
 
 ## API extensions (compared to tarantool/queue)
 
