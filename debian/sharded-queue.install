@@ -1,0 +1,3 @@
+sharded_queue usr/share/tarantool/
+roles usr/share/tarantool/
+init.lua usr/share/tarantool/
