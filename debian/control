@@ -1,0 +1,17 @@
+Source: sharded-queue
+Priority: optional
+Section: database
+Maintainer: Oleg Jukovec <oleg.jukovec@tarantool.org>
+Build-Depends: debhelper-compat (= 13),
+               tarantool (>= 3.0.2.0),
+Standards-Version: 3.9.6
+Homepage: https://github.com/tarantool/sharded-queue
+Vcs-Git: git://github.com/tarantool/sharded-queue.git
+Vcs-Browser: https://github.com/tarantool/sharded-queue
+
+Package: sharded-queue
+Architecture: all
+Depends: tarantool (>= 3.0.2.0), ${misc:Depends}
+Description: Tarantool Sharded Queue Application
+ This module provides roles for the Tarantool 3 and for the Tarantool Cartridge
+ implementing of a distributed queue compatible with Tarantool queue (fifiottl driver).

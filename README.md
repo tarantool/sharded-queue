@@ -376,3 +376,37 @@ installed and the feature is not disabled by the configuration.
 
 [metrics-summary]: https://www.tarantool.io/en/doc/latest/book/monitoring/api_reference/#summary
 [queue-statistics]: https://github.com/tarantool/queue?tab=readme-ov-file#getting-statistics
+
+## Release Process
+
+Release process includes rpm and deb packages creation via GitHub Action, but requires a
+few manual steps from the mantainer to keep package logs consistent.
+
+### 1. Update the Changelog
+
+* Ensure that `CHANGELOG.md` contains a new section for the upcoming version and it
+  follows standart format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
+
+* The version in the heading must match the new release tag (without the `v` prefix)
+
+### 2. Synchronize package changelogs
+
+Run the provided helper scripts to update the Debian and RPM changelog files. These
+script extract the release note from `CHANGELOG.md` based on the tag and prepend them
+to the approptiate files in the required format. Then you need to commit this changes.
+
+```bash
+# Update debian/changelog
+./debian/update_debian_changelog.sh v1.2.3
+
+# Update rpm/sharded-queue.spec
+./rpm/update_rpm_changelog.sh v1.2.3
+```
+
+In case of this step was skipped and release tag was already pushed GitHub Action will
+notice this and update changelogs automatically to provide up to date packages, but
+this step still has to be done to update changelog at the branch.
+
+### 3. Create and push a git tag
+
+Create and push a release tag to trigger GitHub pipeline.
