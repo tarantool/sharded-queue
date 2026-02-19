@@ -19,7 +19,7 @@ jobs:
       matrix:
         tarantool:
           - '3.2'
-          - '3.4'
+          - '3.6'
           - 'master'
         cartridge: [false]
         coveralls: [false]
