@@ -108,6 +108,33 @@ Now you could install resulting package on your target servers.
 
 For more details refer to [tt](https://github.com/tarantool/tt/)
 
+## Building from the source
+
+To build sharded-queue from source download .rockspec file:
+```shell
+tt rocks download sharded-queue 1.0.0 --rockspec
+```
+
+After run a rock installation:
+```shell
+tt rocks install sharded-queue-1.0.0-1.rockspec
+```
+
+Or build a rock file:
+```shell
+tt rocks pack sharded-queue-1.0.0-1.rockspec
+```
+
+## Downloading pre-builded rock/rockspec
+
+As alternative, application can be installed by pre-builded .rock file.
+Download file and move it to the preferred place, then run tt rocks
+install:
+```shell
+tt rocks download sharded-queue 1.0.0
+tt rocks install sharded-queue-1.0.0-1.all.rock
+```
+
 ## Usage from client perspective
 
 The good old queue api is located on all instances of the router masters that
