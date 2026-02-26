@@ -1,3 +1,12 @@
+sharded-queue (1.1.0-1) unstable; urgency=medium
+
+  The release synchronizes sharded-queue with sharded-queue-ee.
+  * Method truncate() to clean tubes.
+  * `release_limit` configuration option: a taken task is removed from the queue
+  * `release_limit_policy` configuration option: control the behavior when a task
+
+ -- Oleg Jukovec <oleg.jukovec@tarantool.org>  Fri, 27 Feb 2026 01:06:06 +0300
+
 sharded-queue (1.0.0-1) unstable; urgency=medium
 
   * Initial release
