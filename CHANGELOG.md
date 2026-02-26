@@ -9,16 +9,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Method truncate() to clean tubes (#78).
-- `release_limit` configuration option: a taken task is removed from the queue
-  if the task has been released (by `release` or `ttr`) `release_limit` times (#8).
-
-- `release_limit_policy` configuration option: control the behavior when a task
-  reached the `release_limit` (#9).
-
 ### Changed
 
 ### Fixed
+
+## 1.1.0 - 2026-02-27
+
+The release synchronizes sharded-queue with sharded-queue-ee.
+
+### Added
+
+- Method truncate() to clean tubes.
+- `release_limit` configuration option: a taken task is removed from the queue
+  if the task has been released (by `release` or `ttr`) `release_limit` times.
+- `release_limit_policy` configuration option: control the behavior when a task
+  reached the `release_limit`.
 
 ## 1.0.0 - 2024-04-17
 

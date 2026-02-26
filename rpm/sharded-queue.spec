@@ -1,5 +1,5 @@
 Name: sharded-queue
-Version: 1.0.0-1
+Version: 1.1.0-1
 Release: 1%{?dist}
 Summary: Tarantool Sharded Queue Application
 Group: Applications/Databases
@@ -31,6 +31,11 @@ install -m 0644 roles/* %{buildroot}%{_datarootdir}/tarantool/roles/
 %doc README.md
 
 %changelog
+
+* Fri Feb 27 2026 Oleg Jukovec <oleg.jukovec@tarantool.org> - 1.1.0-1
+- Method truncate() to clean tubes.
+- `release_limit` configuration option: a taken task is removed from the queue
+- `release_limit_policy` configuration option: control the behavior when a task
 
 * Tue Feb 17 2026 Oleg Jukovec <oleg.jukovec@tarantool.org> 1.0.0-1
 - Initial version of the RPM spec
