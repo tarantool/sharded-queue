@@ -11,21 +11,29 @@ jobs:
     if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-24.04
     steps:
-      - name: Clone the module
-        uses: actions/checkout@v6
-
       - name: Install tarantool
         uses: tarantool/setup-tarantool@v4
         with:
           tarantool-version: '2.11'
 
+      - name: Setup tt
+        run: |
+          curl -L https://tarantool.io/release/3/installer.sh | sudo bash
+          sudo apt install -y tt
+
       - name: Install roles requirements
-        run: make deps-cartridge
+        run: tt rocks install cartridge 2.16.6 --tree $HOME/tmp
 
       - name: Check module version for api
         uses: tarantool/actions/check-module-version@master
         with:
           module-name: 'sharded_queue.api'
+          version-pre-extraction-hook: |
+            local home = os.getenv('HOME')
+            package.path = package.path .. ';' .. home .. '/tmp/share/tarantool/?.lua;' ..
+              home .. '/tmp/share/tarantool/?/init.lua'
+            package.cpath = package.cpath .. ';' .. home .. '/tmp/lib/tarantool/?.so'
+
       - name: Check module version for storage
         uses: tarantool/actions/check-module-version@master
         with:
