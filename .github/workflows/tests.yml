@@ -41,7 +41,7 @@ jobs:
           sudo apt install -y tt
 
       - name: Install tarantool ${{ matrix.tarantool }}
-        uses: tarantool/setup-tarantool@v3
+        uses: tarantool/setup-tarantool@v4
         with:
           tarantool-version: ${{ matrix.tarantool }}
         if: matrix.tarantool != 'master'

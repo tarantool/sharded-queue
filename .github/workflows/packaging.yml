@@ -18,6 +18,11 @@ jobs:
       - name: Clone the module
         uses: actions/checkout@v6
 
+      - name: Install tarantool
+        uses: tarantool/setup-tarantool@v4
+        with:
+          tarantool-version: '2.11.8'
+
       - name: Install roles requirements
         run: make deps-cartridge
 
