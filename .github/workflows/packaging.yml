@@ -51,10 +51,9 @@ jobs:
       fail-fast: false
       matrix:
         platform:
-          - { os: 'debian', dist: 'stretch' }
           - { os: 'debian', dist: 'bullseye' }
-          - { os: 'ubuntu', dist: 'xenial' }
-          - { os: 'ubuntu', dist: 'bionic' }
+          - { os: 'debian', dist: 'buster' }
+          - { os: 'ubuntu', dist: 'noble' }
           - { os: 'ubuntu', dist: 'focal' }
           - { os: 'ubuntu', dist: 'groovy' }
           - { os: 'ubuntu', dist: 'jammy' }
